@@ -1,0 +1,530 @@
+// controllers/cursoController.js
+import Curso from '../models/Curso.js';
+import User from '../models/User.js';
+import csv from 'csv-parser';
+import { Readable } from 'stream';
+import { validationResult } from 'express-validator';
+
+
+// Crear curso
+export const createCurso = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        message: "Errores de validación",
+        errors: errors.array() 
+      });
+    }
+
+    const { nombre, descripcion, fotoPortadaUrl, docenteId } = req.body;
+
+    // Verificar que el docente existe y tiene el rol correcto
+    const docente = await User.findById(docenteId);
+    if (!docente || docente.rol !== 'docente') {
+      return res.status(400).json({ 
+        message: "El docenteId debe corresponder a un usuario con rol docente" 
+      });
+    }
+
+    const nuevoCurso = new Curso({
+      nombre,
+      descripcion,
+      fotoPortadaUrl,
+      docenteId,
+      participantes: [{ usuarioId: docenteId, etiqueta: 'docente' }] // El docente se agrega automáticamente
+    });
+
+    const cursoGuardado = await nuevoCurso.save();
+    await cursoGuardado.populate('docenteId', 'nombre apellido correo');
+
+    res.status(201).json({
+      message: "Curso creado exitosamente",
+      curso: cursoGuardado
+    });
+
+  } catch (error) {
+    console.error('Error al crear curso:', error);
+    res.status(500).json({ 
+      message: "Error interno del servidor",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// Listar cursos con filtros y paginación
+export const getCursos = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const estado = req.query.estado || 'activo';
+    const docenteId = req.query.docenteId;
+
+    // Construir filtro
+    let filtro = { estado };
+    if (docenteId) {
+      filtro.docenteId = docenteId;
+    }
+
+    const cursos = await Curso.find(filtro)
+      .populate('docenteId', 'nombre apellido correo telefono')
+      .populate('participantes.usuarioId', 'nombre apellido correo rol')
+      .skip(skip)
+      .limit(limit)
+      .sort({ fechaCreacion: -1 });
+
+    const total = await Curso.countDocuments(filtro);
+
+    res.json({
+      cursos,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalCursos: total,
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPrevPage: page > 1
+      }
+    });
+
+  } catch (error) {
+    console.error('Error al obtener cursos:', error);
+    res.status(500).json({ 
+      message: "Error interno del servidor" 
+    });
+  }
+};
+
+// Obtener curso por ID
+export const getCursoById = async (req, res) => {
+  try {
+    const curso = await Curso.findById(req.params.id)
+      .populate('docenteId', 'nombre apellido correo telefono')
+      .populate('participantes.usuarioId', 'nombre apellido correo rol telefono');
+
+    if (!curso) {
+      return res.status(404).json({ 
+        message: "Curso no encontrado" 
+      });
+    }
+
+    res.json({ curso });
+
+  } catch (error) {
+    console.error('Error al obtener curso:', error);
+    res.status(500).json({ 
+      message: "Error interno del servidor" 
+    });
+  }
+};
+
+// Obtener cursos donde el usuario es participante
+export const getMisCursos = async (req, res) => {
+  try {
+    const usuarioId = req.user.userId;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const cursos = await Curso.find({
+      'participantes.usuarioId': usuarioId,
+      estado: 'activo'
+    })
+    .populate('docenteId', 'nombre apellido correo')
+    .populate('participantes.usuarioId', 'nombre apellido correo rol')
+    .skip(skip)
+    .limit(limit)
+    .sort({ fechaCreacion: -1 });
+
+    const total = await Curso.countDocuments({
+      'participantes.usuarioId': usuarioId,
+      estado: 'activo'
+    });
+
+    res.json({
+      cursos,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalCursos: total,
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPrevPage: page > 1
+      }
+    });
+
+  } catch (error) {
+    console.error('Error al obtener mis cursos:', error);
+    res.status(500).json({ 
+      message: "Error interno del servidor" 
+    });
+  }
+};
+
+// Actualizar curso
+export const updateCurso = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        message: "Errores de validación",
+        errors: errors.array() 
+      });
+    }
+
+    const { id } = req.params;
+    const updateData = { ...req.body };
+
+    // No permitir actualizar participantes directamente
+    delete updateData.participantes;
+    delete updateData.fechaCreacion;
+
+    const cursoActualizado = await Curso.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    )
+    .populate('docenteId', 'nombre apellido correo')
+    .populate('participantes.usuarioId', 'nombre apellido correo rol');
+
+    if (!cursoActualizado) {
+      return res.status(404).json({ 
+        message: "Curso no encontrado" 
+      });
+    }
+
+    res.json({
+      message: "Curso actualizado exitosamente",
+      curso: cursoActualizado
+    });
+
+  } catch (error) {
+    console.error('Error al actualizar curso:', error);
+    res.status(500).json({ 
+      message: "Error interno del servidor" 
+    });
+  }
+};
+
+// Archivar curso (soft delete)
+export const archivarCurso = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const cursoArchivado = await Curso.findByIdAndUpdate(
+      id,
+      { estado: 'archivado' },
+      { new: true }
+    )
+    .populate('docenteId', 'nombre apellido correo');
+
+    if (!cursoArchivado) {
+      return res.status(404).json({ 
+        message: "Curso no encontrado" 
+      });
+    }
+
+    res.json({
+      message: "Curso archivado exitosamente",
+      curso: cursoArchivado
+    });
+
+  } catch (error) {
+    console.error('Error al archivar curso:', error);
+    res.status(500).json({ 
+      message: "Error interno del servidor" 
+    });
+  }
+};
+
+// Agregar participante al curso
+export const agregarParticipante = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { usuarioId, etiqueta } = req.body;
+
+    // Verificar que el usuario existe
+    const usuario = await User.findById(usuarioId);
+    if (!usuario) {
+      return res.status(404).json({ 
+        message: "Usuario no encontrado" 
+      });
+    }
+
+    // Verificar que la etiqueta coincide con el rol del usuario
+    if ((etiqueta === 'docente' && usuario.rol !== 'docente') ||
+        (etiqueta === 'padre' && usuario.rol !== 'padre')) {
+      return res.status(400).json({ 
+        message: "La etiqueta no coincide con el rol del usuario" 
+      });
+    }
+
+    const curso = await Curso.findById(id);
+    if (!curso) {
+      return res.status(404).json({ 
+        message: "Curso no encontrado" 
+      });
+    }
+
+    if (curso.esParticipante(usuarioId)) {
+      return res.status(400).json({ 
+        message: "El usuario ya es participante de este curso" 
+      });
+    }
+
+    curso.agregarParticipante(usuarioId, etiqueta);
+    await curso.save();
+
+    await curso.populate('participantes.usuarioId', 'nombre apellido correo rol');
+
+    res.json({
+      message: "Participante agregado exitosamente",
+      curso
+    });
+
+  } catch (error) {
+    console.error('Error al agregar participante:', error);
+    res.status(500).json({ 
+      message: "Error interno del servidor" 
+    });
+  }
+};
+
+// Remover participante del curso
+export const removerParticipante = async (req, res) => {
+  try {
+    const { id, usuarioId } = req.params;
+
+    const curso = await Curso.findById(id);
+    if (!curso) {
+      return res.status(404).json({ 
+        message: "Curso no encontrado" 
+      });
+    }
+
+    // No permitir remover al docente principal
+    if (curso.docenteId.toString() === usuarioId) {
+      return res.status(400).json({ 
+        message: "No se puede remover al docente principal del curso" 
+      });
+    }
+
+    if (!curso.esParticipante(usuarioId)) {
+      return res.status(400).json({ 
+        message: "El usuario no es participante de este curso" 
+      });
+    }
+
+    curso.removerParticipante(usuarioId);
+    await curso.save();
+
+    await curso.populate('participantes.usuarioId', 'nombre apellido correo rol');
+
+    res.json({
+      message: "Participante removido exitosamente",
+      curso
+    });
+
+  } catch (error) {
+    console.error('Error al remover participante:', error);
+    res.status(500).json({ 
+      message: "Error interno del servidor" 
+    });
+  }
+};
+
+// Registrar usuarios masivamente desde CSV
+// En controllers/cursoController.js - Reemplaza el método registrarUsuariosMasivo
+
+export const registrarUsuariosMasivo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const usuarioLogueado = req.user;
+
+    if (!req.file) {
+      return res.status(400).json({
+        message: "No se ha subido ningún archivo CSV"
+      });
+    }
+
+    const curso = await Curso.findById(id);
+    if (!curso) {
+      return res.status(404).json({
+        message: "Curso no encontrado"
+      });
+    }
+
+    if (usuarioLogueado.rol === 'docente' && curso.docenteId.toString() !== usuarioLogueado.userId) {
+      return res.status(403).json({
+        message: "No tienes permisos para agregar usuarios a este curso"
+      });
+    }
+
+    const resultados = {
+      exitosos: [],
+      errores: [],
+      duplicados: []
+    };
+
+    const stream = Readable.from(req.file.buffer.toString());
+    const usuarios = [];
+
+    await new Promise((resolve, reject) => {
+      stream
+        .pipe(csv({
+          headers: ['nombre', 'apellido', 'telefono', 'cedula'],
+          skipEmptyLines: true
+        }))
+        .on('data', (data) => {
+          // Saltar la primera fila si contiene headers
+          if (data.nombre === 'nombre' && data.apellido === 'apellido') {
+            return;
+          }
+          
+          if (data.nombre && data.apellido && data.telefono && data.cedula) {
+            usuarios.push({
+              nombre: data.nombre.trim(),
+              apellido: data.apellido.trim(),
+              telefono: data.telefono.trim(),
+              cedula: data.cedula.trim()
+            });
+          }
+        })
+        .on('end', resolve)
+        .on('error', reject);
+    });
+
+    if (usuarios.length === 0) {
+      return res.status(400).json({
+        message: "No se encontraron usuarios válidos en el archivo CSV",
+        nota: "Asegúrate de que el archivo tenga las columnas: nombre, apellido, telefono, cedula"
+      });
+    }
+
+    // Procesar cada usuario
+    for (const userData of usuarios) {
+      try {
+        const { nombre, apellido, telefono, cedula } = userData;
+        const correoTemporal = `${cedula}@temp.com`;
+
+        // Buscar usuario existente por correo temporal O por contraseña (cédula)
+        let usuario = await User.findOne({
+          $or: [
+            { correo: correoTemporal },
+            { contraseña: cedula }
+          ]
+        });
+
+        if (usuario) {
+          // Usuario ya existe
+          if (curso.esParticipante(usuario._id)) {
+            resultados.duplicados.push({
+              nombre: `${usuario.nombre} ${usuario.apellido}`,
+              cedula: cedula,
+              motivo: "Ya está inscrito en el curso"
+            });
+          } else {
+            // Usuario existe pero no está en el curso, agregarlo
+            curso.agregarParticipante(usuario._id, 'padre');
+            resultados.exitosos.push({
+              nombre: `${usuario.nombre} ${usuario.apellido}`,
+              cedula: cedula,
+              telefono: usuario.telefono,
+              accion: "Agregado al curso (usuario existente)"
+            });
+          }
+        } else {
+          // Crear nuevo usuario
+          const nuevoUsuario = new User({
+            nombre,
+            apellido,
+            correo: correoTemporal,
+            telefono,
+            contraseña: cedula, // La cédula se guarda como contraseña
+            rol: 'padre',
+            estado: 'activo'
+          });
+
+          const usuarioCreado = await nuevoUsuario.save();
+          curso.agregarParticipante(usuarioCreado._id, 'padre');
+          
+          resultados.exitosos.push({
+            nombre: `${usuarioCreado.nombre} ${usuarioCreado.apellido}`,
+            cedula: cedula,
+            telefono: usuarioCreado.telefono,
+            accion: "Usuario creado y agregado al curso"
+          });
+        }
+
+      } catch (error) {
+        // Si es error de duplicado, intentar encontrar el usuario existente
+        if (error.code === 11000) {
+          try {
+            const { cedula } = userData;
+            const correoTemporal = `${cedula}@temp.com`;
+            
+            let usuario = await User.findOne({
+              $or: [
+                { correo: correoTemporal },
+                { contraseña: cedula }
+              ]
+            });
+
+            if (usuario && curso.esParticipante(usuario._id)) {
+              resultados.duplicados.push({
+                nombre: `${usuario.nombre} ${usuario.apellido}`,
+                cedula: cedula,
+                motivo: "Ya está inscrito en el curso"
+              });
+            } else if (usuario) {
+              curso.agregarParticipante(usuario._id, 'padre');
+              resultados.exitosos.push({
+                nombre: `${usuario.nombre} ${usuario.apellido}`,
+                cedula: cedula,
+                telefono: usuario.telefono,
+                accion: "Agregado al curso (usuario existente)"
+              });
+            } else {
+              resultados.errores.push({
+                datos: userData,
+                error: "Usuario duplicado pero no se pudo encontrar en la base de datos"
+              });
+            }
+          } catch (innerError) {
+            resultados.errores.push({
+              datos: userData,
+              error: error.message
+            });
+          }
+        } else {
+          resultados.errores.push({
+            datos: userData,
+            error: error.message
+          });
+        }
+      }
+    }
+
+    // Guardar cambios en el curso solo si hay modificaciones
+    if (resultados.exitosos.length > 0) {
+      await curso.save();
+    }
+
+    res.status(200).json({
+      message: "Proceso de registro masivo completado",
+      resumen: {
+        total: usuarios.length,
+        exitosos: resultados.exitosos.length,
+        errores: resultados.errores.length,
+        duplicados: resultados.duplicados.length
+      },
+      resultados
+    });
+
+  } catch (error) {
+    console.error('Error en registro masivo:', error);
+    res.status(500).json({
+      message: "Error interno del servidor",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};

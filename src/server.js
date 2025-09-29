@@ -4,7 +4,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import connectDB from "./config/database.js";
 import userRoutes from "./routes/userRoutes.js";
-import authRoutes from "./routes/authRoutes.js"; 
+import authRoutes from "./routes/authRoutes.js";
+import cursoRoutes from "./routes/cursoRoutes.js";
 import { errorHandler } from "./middlewares/errorMiddleware.js";
 
 dotenv.config();
@@ -20,8 +21,9 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Rutas
-app.use("/api/auth", authRoutes); // Nueva línea
+app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/cursos", cursoRoutes); 
 
 // Ruta de salud
 app.get("/health", (req, res) => {
@@ -33,8 +35,9 @@ app.use(errorHandler);
 
 // Manejo de rutas no encontradas
 app.use((req, res) => {
-  res.status(404).json({ message: "Ruta no encontrada" });
+  res.status(404).send('Ruta no encontrada');
 });
+
 
 // Puerto
 const PORT = process.env.PORT || 4000;
