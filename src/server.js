@@ -7,6 +7,9 @@ import userRoutes from "./routes/userRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import cursoRoutes from "./routes/cursoRoutes.js";
 import { errorHandler } from "./middlewares/errorMiddleware.js";
+import moduloRoutes from './routes/moduloRoutes.js';
+import tareaRoutes from './routes/tareaRoutes.js';
+import entregaRoutes from './routes/entregaRoutes.js';
 
 dotenv.config();
 
@@ -24,6 +27,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/cursos", cursoRoutes); 
+app.use('/api/modulos', moduloRoutes);
+app.use('/api/tareas', tareaRoutes);
+app.use('/api/entregas', entregaRoutes);
 
 // Ruta de salud
 app.get("/health", (req, res) => {

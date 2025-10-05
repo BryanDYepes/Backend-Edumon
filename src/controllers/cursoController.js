@@ -1,12 +1,164 @@
 // controllers/cursoController.js
 import Curso from '../models/Curso.js';
 import User from '../models/User.js';
+import { validationResult } from 'express-validator';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
-import { validationResult } from 'express-validator';
 
+// Función auxiliar para procesar CSV (reutilizable)
+async function procesarUsuariosCSV(file, cursoId) {
+  const resultados = {
+    exitosos: [],
+    errores: [],
+    duplicados: []
+  };
 
-// Crear curso
+  try {
+    const curso = await Curso.findById(cursoId);
+    if (!curso) {
+      throw new Error("Curso no encontrado");
+    }
+
+    const stream = Readable.from(file.buffer.toString());
+    const usuarios = [];
+
+    await new Promise((resolve, reject) => {
+      stream
+        .pipe(csv({
+          headers: ['nombre', 'apellido', 'telefono', 'cedula'],
+          skipEmptyLines: true
+        }))
+        .on('data', (data) => {
+          // Saltar headers
+          if (data.nombre === 'nombre' && data.apellido === 'apellido') {
+            return;
+          }
+          
+          if (data.nombre && data.apellido && data.telefono && data.cedula) {
+            usuarios.push({
+              nombre: data.nombre.trim(),
+              apellido: data.apellido.trim(),
+              telefono: data.telefono.trim(),
+              cedula: data.cedula.trim()
+            });
+          }
+        })
+        .on('end', resolve)
+        .on('error', reject);
+    });
+
+    // Procesar cada usuario
+    for (const userData of usuarios) {
+      try {
+        const { nombre, apellido, telefono, cedula } = userData;
+        const correoTemporal = `${cedula}@temp.com`;
+
+        let usuario = await User.findOne({
+          $or: [
+            { correo: correoTemporal },
+            { contraseña: cedula }
+          ]
+        });
+
+        if (usuario) {
+          if (curso.esParticipante(usuario._id)) {
+            resultados.duplicados.push({
+              nombre: `${usuario.nombre} ${usuario.apellido}`,
+              cedula: cedula,
+              motivo: "Ya está inscrito en el curso"
+            });
+          } else {
+            curso.agregarParticipante(usuario._id, 'padre');
+            resultados.exitosos.push({
+              nombre: `${usuario.nombre} ${usuario.apellido}`,
+              cedula: cedula,
+              telefono: usuario.telefono,
+              accion: "Agregado al curso (usuario existente)"
+            });
+          }
+        } else {
+          const nuevoUsuario = new User({
+            nombre,
+            apellido,
+            correo: correoTemporal,
+            telefono,
+            contraseña: cedula,
+            rol: 'padre',
+            estado: 'activo'
+          });
+
+          const usuarioCreado = await nuevoUsuario.save();
+          curso.agregarParticipante(usuarioCreado._id, 'padre');
+          
+          resultados.exitosos.push({
+            nombre: `${usuarioCreado.nombre} ${usuarioCreado.apellido}`,
+            cedula: cedula,
+            telefono: usuarioCreado.telefono,
+            accion: "Usuario creado y agregado al curso"
+          });
+        }
+
+      } catch (error) {
+        if (error.code === 11000) {
+          try {
+            const { cedula } = userData;
+            const correoTemporal = `${cedula}@temp.com`;
+            
+            let usuario = await User.findOne({
+              $or: [
+                { correo: correoTemporal },
+                { contraseña: cedula }
+              ]
+            });
+
+            if (usuario && curso.esParticipante(usuario._id)) {
+              resultados.duplicados.push({
+                nombre: `${usuario.nombre} ${usuario.apellido}`,
+                cedula: cedula,
+                motivo: "Ya está inscrito en el curso"
+              });
+            } else if (usuario) {
+              curso.agregarParticipante(usuario._id, 'padre');
+              resultados.exitosos.push({
+                nombre: `${usuario.nombre} ${usuario.apellido}`,
+                cedula: cedula,
+                telefono: usuario.telefono,
+                accion: "Agregado al curso (usuario existente)"
+              });
+            }
+          } catch (innerError) {
+            resultados.errores.push({
+              datos: userData,
+              error: error.message
+            });
+          }
+        } else {
+          resultados.errores.push({
+            datos: userData,
+            error: error.message
+          });
+        }
+      }
+    }
+
+    await curso.save();
+
+    return {
+      resumen: {
+        total: usuarios.length,
+        exitosos: resultados.exitosos.length,
+        errores: resultados.errores.length,
+        duplicados: resultados.duplicados.length
+      },
+      detalles: resultados
+    };
+
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Crear curso CON OPCIÓN de carga masiva de usuarios
 export const createCurso = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -27,21 +179,40 @@ export const createCurso = async (req, res) => {
       });
     }
 
+    // Crear el curso
     const nuevoCurso = new Curso({
       nombre,
       descripcion,
       fotoPortadaUrl,
       docenteId,
-      participantes: [{ usuarioId: docenteId, etiqueta: 'docente' }] // El docente se agrega automáticamente
+      participantes: [{ usuarioId: docenteId, etiqueta: 'docente' }]
     });
 
     const cursoGuardado = await nuevoCurso.save();
-    await cursoGuardado.populate('docenteId', 'nombre apellido correo');
 
-    res.status(201).json({
+    // Si hay archivo CSV, procesar usuarios masivamente
+    let resultadosCarga = null;
+    if (req.file) {
+      resultadosCarga = await procesarUsuariosCSV(req.file, cursoGuardado._id);
+      
+      // Recargar el curso con los nuevos participantes
+      await cursoGuardado.populate('docenteId', 'nombre apellido correo');
+      await cursoGuardado.populate('participantes.usuarioId', 'nombre apellido correo rol');
+    } else {
+      await cursoGuardado.populate('docenteId', 'nombre apellido correo');
+    }
+
+    const respuesta = {
       message: "Curso creado exitosamente",
       curso: cursoGuardado
-    });
+    };
+
+    // Si se procesó CSV, agregar resultados
+    if (resultadosCarga) {
+      respuesta.cargaMasiva = resultadosCarga;
+    }
+
+    res.status(201).json(respuesta);
 
   } catch (error) {
     console.error('Error al crear curso:', error);
@@ -332,9 +503,7 @@ export const removerParticipante = async (req, res) => {
   }
 };
 
-// Registrar usuarios masivamente desde CSV
-// En controllers/cursoController.js - Reemplaza el método registrarUsuariosMasivo
-
+// Registrar usuarios masivamente desde CSV (endpoint independiente)
 export const registrarUsuariosMasivo = async (req, res) => {
   try {
     const { id } = req.params;
@@ -359,165 +528,11 @@ export const registrarUsuariosMasivo = async (req, res) => {
       });
     }
 
-    const resultados = {
-      exitosos: [],
-      errores: [],
-      duplicados: []
-    };
-
-    const stream = Readable.from(req.file.buffer.toString());
-    const usuarios = [];
-
-    await new Promise((resolve, reject) => {
-      stream
-        .pipe(csv({
-          headers: ['nombre', 'apellido', 'telefono', 'cedula'],
-          skipEmptyLines: true
-        }))
-        .on('data', (data) => {
-          // Saltar la primera fila si contiene headers
-          if (data.nombre === 'nombre' && data.apellido === 'apellido') {
-            return;
-          }
-          
-          if (data.nombre && data.apellido && data.telefono && data.cedula) {
-            usuarios.push({
-              nombre: data.nombre.trim(),
-              apellido: data.apellido.trim(),
-              telefono: data.telefono.trim(),
-              cedula: data.cedula.trim()
-            });
-          }
-        })
-        .on('end', resolve)
-        .on('error', reject);
-    });
-
-    if (usuarios.length === 0) {
-      return res.status(400).json({
-        message: "No se encontraron usuarios válidos en el archivo CSV",
-        nota: "Asegúrate de que el archivo tenga las columnas: nombre, apellido, telefono, cedula"
-      });
-    }
-
-    // Procesar cada usuario
-    for (const userData of usuarios) {
-      try {
-        const { nombre, apellido, telefono, cedula } = userData;
-        const correoTemporal = `${cedula}@temp.com`;
-
-        // Buscar usuario existente por correo temporal O por contraseña (cédula)
-        let usuario = await User.findOne({
-          $or: [
-            { correo: correoTemporal },
-            { contraseña: cedula }
-          ]
-        });
-
-        if (usuario) {
-          // Usuario ya existe
-          if (curso.esParticipante(usuario._id)) {
-            resultados.duplicados.push({
-              nombre: `${usuario.nombre} ${usuario.apellido}`,
-              cedula: cedula,
-              motivo: "Ya está inscrito en el curso"
-            });
-          } else {
-            // Usuario existe pero no está en el curso, agregarlo
-            curso.agregarParticipante(usuario._id, 'padre');
-            resultados.exitosos.push({
-              nombre: `${usuario.nombre} ${usuario.apellido}`,
-              cedula: cedula,
-              telefono: usuario.telefono,
-              accion: "Agregado al curso (usuario existente)"
-            });
-          }
-        } else {
-          // Crear nuevo usuario
-          const nuevoUsuario = new User({
-            nombre,
-            apellido,
-            correo: correoTemporal,
-            telefono,
-            contraseña: cedula, // La cédula se guarda como contraseña
-            rol: 'padre',
-            estado: 'activo'
-          });
-
-          const usuarioCreado = await nuevoUsuario.save();
-          curso.agregarParticipante(usuarioCreado._id, 'padre');
-          
-          resultados.exitosos.push({
-            nombre: `${usuarioCreado.nombre} ${usuarioCreado.apellido}`,
-            cedula: cedula,
-            telefono: usuarioCreado.telefono,
-            accion: "Usuario creado y agregado al curso"
-          });
-        }
-
-      } catch (error) {
-        // Si es error de duplicado, intentar encontrar el usuario existente
-        if (error.code === 11000) {
-          try {
-            const { cedula } = userData;
-            const correoTemporal = `${cedula}@temp.com`;
-            
-            let usuario = await User.findOne({
-              $or: [
-                { correo: correoTemporal },
-                { contraseña: cedula }
-              ]
-            });
-
-            if (usuario && curso.esParticipante(usuario._id)) {
-              resultados.duplicados.push({
-                nombre: `${usuario.nombre} ${usuario.apellido}`,
-                cedula: cedula,
-                motivo: "Ya está inscrito en el curso"
-              });
-            } else if (usuario) {
-              curso.agregarParticipante(usuario._id, 'padre');
-              resultados.exitosos.push({
-                nombre: `${usuario.nombre} ${usuario.apellido}`,
-                cedula: cedula,
-                telefono: usuario.telefono,
-                accion: "Agregado al curso (usuario existente)"
-              });
-            } else {
-              resultados.errores.push({
-                datos: userData,
-                error: "Usuario duplicado pero no se pudo encontrar en la base de datos"
-              });
-            }
-          } catch (innerError) {
-            resultados.errores.push({
-              datos: userData,
-              error: error.message
-            });
-          }
-        } else {
-          resultados.errores.push({
-            datos: userData,
-            error: error.message
-          });
-        }
-      }
-    }
-
-    // Guardar cambios en el curso solo si hay modificaciones
-    if (resultados.exitosos.length > 0) {
-      await curso.save();
-    }
+    const resultadosCarga = await procesarUsuariosCSV(req.file, id);
 
     res.status(200).json({
       message: "Proceso de registro masivo completado",
-      resumen: {
-        total: usuarios.length,
-        exitosos: resultados.exitosos.length,
-        errores: resultados.errores.length,
-        duplicados: resultados.duplicados.length
-      },
-      resultados
+      ...resultadosCarga
     });
 
   } catch (error) {

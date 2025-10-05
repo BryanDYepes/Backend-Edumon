@@ -1,3 +1,4 @@
+// routes/cursoRoutes.js
 import express from 'express';
 import {
   createCurso,
@@ -7,7 +8,8 @@ import {
   updateCurso,
   archivarCurso,
   agregarParticipante,
-  removerParticipante
+  removerParticipante,
+  registrarUsuariosMasivo
 } from '../controllers/cursoController.js';
 import { authMiddleware, requireRole } from '../middlewares/authMiddleware.js';
 import {
@@ -17,14 +19,14 @@ import {
   cursoIdValidator
 } from '../middlewares/validators/cursoValidator.js';
 import { csvUpload } from '../middlewares/csvMiddleware.js';
-import { registrarUsuariosMasivo } from '../controllers/cursoController.js';
 
 const router = express.Router();
 
-// Rutas públicas para administradores y docentes
+// Crear curso (CON OPCIÓN de archivo CSV)
 router.post('/', 
   authMiddleware, 
-  requireRole(['administrador', 'docente']), 
+  requireRole(['administrador', 'docente']),
+  csvUpload.single('archivo'), // Agregar middleware de CSV (opcional)
   createCursoValidator, 
   createCurso
 );
@@ -74,11 +76,12 @@ router.delete('/:id/participantes/:usuarioId',
   removerParticipante
 );
 
+// Carga masiva independiente (mantener para agregar usuarios después)
 router.post('/:id/usuarios-masivo', 
   authMiddleware, 
   requireRole(['administrador', 'docente']), 
   cursoIdValidator,
-  csvUpload.single('archivo'), // 'archivo' es el nombre del campo en el form
+  csvUpload.single('archivo'),
   registrarUsuariosMasivo
 );
 
