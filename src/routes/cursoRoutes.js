@@ -26,28 +26,33 @@ const router = express.Router();
 router.post('/', 
   authMiddleware, 
   requireRole(['administrador', 'docente']),
-  csvUpload.single('archivo'), // Agregar middleware de CSV (opcional)
+  csvUpload.single('archivo'), // Middleware de CSV (opcional)
   createCursoValidator, 
   createCurso
 );
 
+// Listar todos los cursos
 router.get('/', 
   authMiddleware, 
-  requireRole(['administrador']), 
+  requireRole(['administrador', 'docente']), 
   getCursos
 );
 
+// ⚠️ IMPORTANTE: Las rutas específicas DEBEN ir ANTES de las rutas con parámetros
+// Obtener mis cursos (DEBE IR ANTES de /:id)
 router.get('/mis-cursos', 
   authMiddleware, 
   getMisCursos
 );
 
+// Obtener curso por ID (DEBE IR DESPUÉS de /mis-cursos)
 router.get('/:id', 
   authMiddleware, 
   cursoIdValidator, 
   getCursoById
 );
 
+// Actualizar curso
 router.put('/:id', 
   authMiddleware, 
   requireRole(['administrador', 'docente']), 
@@ -55,6 +60,7 @@ router.put('/:id',
   updateCurso
 );
 
+// Archivar curso (soft delete) - CAMBIADO A DELETE ✅
 router.delete('/:id', 
   authMiddleware, 
   requireRole(['administrador', 'docente']), 
@@ -76,7 +82,7 @@ router.delete('/:id/participantes/:usuarioId',
   removerParticipante
 );
 
-// Carga masiva independiente (mantener para agregar usuarios después)
+// Carga masiva independiente (para agregar usuarios después de crear el curso)
 router.post('/:id/usuarios-masivo', 
   authMiddleware, 
   requireRole(['administrador', 'docente']), 

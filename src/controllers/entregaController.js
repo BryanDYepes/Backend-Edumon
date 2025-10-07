@@ -152,6 +152,10 @@ export const updateEntrega = async (req, res) => {
 
     // No permitir actualizar calificación directamente
     delete updateData.calificacion;
+    
+    // No permitir actualizar tareaId y padreId
+    delete updateData.tareaId;
+    delete updateData.padreId;
 
     const entrega = await Entrega.findById(id).populate('tareaId');
     
@@ -172,7 +176,7 @@ export const updateEntrega = async (req, res) => {
       { new: true, runValidators: true }
     )
       .populate('tareaId', 'titulo fechaEntrega')
-      .populate('padreId', 'nombre apellido');
+      .populate('padreId', 'nombre apellido correo'); // Agregado correo aquí
 
     res.json({
       message: "Entrega actualizada exitosamente",
@@ -181,11 +185,11 @@ export const updateEntrega = async (req, res) => {
   } catch (error) {
     console.error('Error al actualizar entrega:', error);
     res.status(500).json({
-      message: "Error interno del servidor"
+      message: "Error interno del servidor",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
-
 // Calificar entrega
 export const calificarEntrega = async (req, res) => {
   try {

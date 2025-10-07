@@ -11,16 +11,17 @@ import { authMiddleware } from '../middlewares/authMiddleware.js';
 import { 
   createModuloValidator, 
   updateModuloValidator,
-  moduloIdValidator 
+  moduloIdValidator,
+  cursoIdValidator
 } from '../middlewares/validators/moduloValidator.js';
 
 const router = express.Router();
 
 // Rutas protegidas
 router.post('/', authMiddleware, createModuloValidator, createModulo);
+router.get('/curso/:cursoId', authMiddleware, cursoIdValidator, getModulosByCurso); // 👈 2. MOVER esta línea ANTES de '/:id'
 router.get('/', authMiddleware, getModulos);
 router.get('/:id', authMiddleware, moduloIdValidator, getModuloById);
-router.get('/curso/:cursoId', authMiddleware, moduloIdValidator, getModulosByCurso);
 router.put('/:id', authMiddleware, updateModuloValidator, updateModulo);
 router.delete('/:id', authMiddleware, moduloIdValidator, deleteModulo);
 

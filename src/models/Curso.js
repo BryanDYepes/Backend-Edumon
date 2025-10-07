@@ -49,7 +49,10 @@ const cursoSchema = new mongoose.Schema({
       message: 'El docenteId debe corresponder a un usuario con rol docente'
     }
   },
-  participantes: [participanteSchema],
+   participantes: {
+    type: [participanteSchema],
+    default: [] // ✅ valor por defecto
+  },
   fechaCreacion: { 
     type: Date, 
     default: Date.now 
@@ -70,9 +73,8 @@ cursoSchema.index({ docenteId: 1 });
 cursoSchema.index({ estado: 1 });
 cursoSchema.index({ 'participantes.usuarioId': 1 });
 
-// Virtual para contar participantes
 cursoSchema.virtual('totalParticipantes').get(function() {
-  return this.participantes.length;
+  return Array.isArray(this.participantes) ? this.participantes.length : 0; // ✅ seguro
 });
 
 // Método para verificar si un usuario es participante

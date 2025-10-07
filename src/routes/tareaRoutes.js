@@ -19,7 +19,7 @@ const router = express.Router();
 router.post('/', authMiddleware, createTareaValidator, createTarea);
 router.get('/', authMiddleware, getTareas);
 router.get('/:id', authMiddleware, tareaIdValidator, getTareaById);
-router.put('/:id', authMiddleware, updateTareaValidator, updateTarea);
+router.put('/:id', authMiddleware, tareaIdValidator, updateTareaValidator, updateTarea);
 router.patch('/:id/close', authMiddleware, tareaIdValidator, closeTarea);
 router.delete('/:id', authMiddleware, tareaIdValidator, deleteTarea);
 

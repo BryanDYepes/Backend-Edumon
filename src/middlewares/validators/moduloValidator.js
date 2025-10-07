@@ -39,3 +39,8 @@ export const moduloIdValidator = [
   param('id')
     .isMongoId().withMessage('El ID del módulo no es válido')
 ];
+
+export const cursoIdValidator = [
+  param('cursoId')
+    .isMongoId().withMessage('El ID del curso no es válido')
+];
