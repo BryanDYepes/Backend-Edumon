@@ -28,15 +28,22 @@ const cursoSchema = new mongoose.Schema({
     maxlength: 500
   },
   fotoPortadaUrl: { 
-    type: String,
-    validate: {
-      validator: function(v) {
-        if (!v) return true; // Campo opcional
-        return /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i.test(v);
-      },
-      message: 'La URL de la foto debe ser válida y terminar en jpg, jpeg, png, gif o webp'
-    }
-  },
+  type: String,
+  validate: {
+    validator: function(v) {
+      if (!v) return true; // Campo opcional
+      
+      // ✅ Aceptar URLs externas (http:// o https://)
+      const urlExterna = /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i.test(v);
+      
+      // ✅ Aceptar rutas locales (/uploads/...)
+      const rutaLocal = /^\/uploads\/.+\.(jpg|jpeg|png|gif|webp)$/i.test(v);
+      
+      return urlExterna || rutaLocal;
+    },
+    message: 'La URL de la foto debe ser válida y terminar en jpg, jpeg, png, gif o webp'
+  }
+},
   docenteId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User',

@@ -22,12 +22,25 @@ export const createCursoValidator = [
     .isMongoId()
     .withMessage('El ID del docente debe ser un ObjectId válido'),
 
+  // ✅ SOLUCIÓN: Validar solo si se envía como string Y no hay archivo
   body('fotoPortadaUrl')
-    .optional()
-    .isURL()
-    .withMessage('La URL de la foto debe ser válida')
-    .matches(/\.(jpg|jpeg|png|gif|webp)$/i)
-    .withMessage('La foto debe ser jpg, jpeg, png, gif o webp')
+    .optional({ nullable: true, checkFalsy: true })
+    .custom((value, { req }) => {
+      // Si hay archivo subido, NO validar este campo
+      if (req.files?.fotoPortada?.[0] || req.file?.fieldname === 'fotoPortada') {
+        return true;
+      }
+      
+      // Si NO hay archivo pero SÍ hay valor, validar que sea URL válida
+      if (value && value !== '') {
+        const urlRegex = /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i;
+        if (!urlRegex.test(value)) {
+          throw new Error('La URL de la foto debe ser válida y terminar en jpg, jpeg, png, gif o webp');
+        }
+      }
+      
+      return true;
+    })
 ];
 
 export const updateCursoValidator = [
@@ -47,12 +60,25 @@ export const updateCursoValidator = [
     .withMessage('La descripción debe tener entre 10 y 500 caracteres')
     .trim(),
 
+  // ✅ SOLUCIÓN: Igual que en create
   body('fotoPortadaUrl')
-    .optional()
-    .isURL()
-    .withMessage('La URL de la foto debe ser válida')
-    .matches(/\.(jpg|jpeg|png|gif|webp)$/i)
-    .withMessage('La foto debe ser jpg, jpeg, png, gif o webp')
+    .optional({ nullable: true, checkFalsy: true })
+    .custom((value, { req }) => {
+      // Si hay archivo subido, NO validar este campo
+      if (req.file?.fieldname === 'fotoPortada') {
+        return true;
+      }
+      
+      // Si NO hay archivo pero SÍ hay valor, validar que sea URL válida
+      if (value && value !== '') {
+        const urlRegex = /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i;
+        if (!urlRegex.test(value)) {
+          throw new Error('La URL de la foto debe ser válida y terminar en jpg, jpeg, png, gif o webp');
+        }
+      }
+      
+      return true;
+    })
 ];
 
 export const participanteValidator = [
@@ -60,15 +86,25 @@ export const participanteValidator = [
     .isMongoId()
     .withMessage('ID de curso inválido'),
 
-  body('usuarioId')
+  body('nombre')
     .notEmpty()
-    .withMessage('El ID del usuario es requerido')
-    .isMongoId()
-    .withMessage('El ID del usuario debe ser un ObjectId válido'),
+    .withMessage('El nombre es requerido')
+    .trim(),
 
-  body('etiqueta')
-    .isIn(['padre', 'docente'])
-    .withMessage('La etiqueta debe ser "padre" o "docente"')
+  body('apellido')
+    .notEmpty()
+    .withMessage('El apellido es requerido')
+    .trim(),
+
+  body('telefono')
+    .notEmpty()
+    .withMessage('El teléfono es requerido')
+    .trim(),
+
+  body('cedula')
+    .notEmpty()
+    .withMessage('La cédula es requerida')
+    .trim()
 ];
 
 export const cursoIdValidator = [
@@ -79,7 +115,7 @@ export const cursoIdValidator = [
 
 export const csvFileValidator = [
   body().custom((value, { req }) => {
-    if (!req.file) {
+    if (!req.file && !req.files?.archivo) {
       throw new Error('Se requiere un archivo CSV');
     }
     return true;

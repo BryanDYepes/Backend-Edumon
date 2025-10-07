@@ -5,6 +5,7 @@ import { validationResult } from 'express-validator';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
 import mongoose from 'mongoose';
+import { eliminarArchivo } from '../config/multerConfig.js'; // ✅ NUEVO
 
 // Función auxiliar para procesar CSV (reutilizable)
 async function procesarUsuariosCSV(file, cursoId) {
@@ -159,7 +160,7 @@ async function procesarUsuariosCSV(file, cursoId) {
   }
 }
 
-// Crear curso CON OPCIÓN de carga masiva de usuarios
+// ✅ MODIFICADO - Crear curso CON OPCIÓN de carga masiva de usuarios y foto
 export const createCurso = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -170,7 +171,7 @@ export const createCurso = async (req, res) => {
       });
     }
 
-    const { nombre, descripcion, fotoPortadaUrl, docenteId } = req.body;
+    const { nombre, descripcion, docenteId, fotoPortadaUrl } = req.body;
 
     // Verificar que el docente existe y tiene el rol correcto
     const docente = await User.findById(docenteId);
@@ -180,28 +181,40 @@ export const createCurso = async (req, res) => {
       });
     }
 
+    // ✅ Determinar la URL de la foto
+    let urlFoto = fotoPortadaUrl || null;
+    
+    // Si se subió un archivo de imagen, usar esa ruta
+    if (req.files?.fotoPortada?.[0]) {
+      urlFoto = `/uploads/fotos-perfil/${req.files.fotoPortada[0].filename}`;
+    } else if (req.file && req.file.fieldname === 'fotoPortada') {
+      urlFoto = `/uploads/fotos-perfil/${req.file.filename}`;
+    }
+
     // Crear el curso
     const nuevoCurso = new Curso({
       nombre,
       descripcion,
-      fotoPortadaUrl,
+      fotoPortadaUrl: urlFoto, // ✅ Usar la URL procesada
       docenteId,
       participantes: [{ usuarioId: docenteId, etiqueta: 'docente' }]
     });
 
     const cursoGuardado = await nuevoCurso.save();
 
-    // Si hay archivo CSV, procesar usuarios masivamente
+    // ✅ Si hay archivo CSV, procesar usuarios masivamente
     let resultadosCarga = null;
-    if (req.file) {
-      resultadosCarga = await procesarUsuariosCSV(req.file, cursoGuardado._id);
-
-      // Recargar el curso con los nuevos participantes
-      await cursoGuardado.populate('docenteId', 'nombre apellido correo');
+    if (req.files?.archivo?.[0]) {
+      // Caso: múltiples archivos con fields()
+      resultadosCarga = await procesarUsuariosCSV(req.files.archivo[0], cursoGuardado._id);
       await cursoGuardado.populate('participantes.usuarioId', 'nombre apellido correo rol');
-    } else {
-      await cursoGuardado.populate('docenteId', 'nombre apellido correo');
+    } else if (req.file && req.file.fieldname === 'archivo') {
+      // Caso: archivo único CSV
+      resultadosCarga = await procesarUsuariosCSV(req.file, cursoGuardado._id);
+      await cursoGuardado.populate('participantes.usuarioId', 'nombre apellido correo rol');
     }
+
+    await cursoGuardado.populate('docenteId', 'nombre apellido correo');
 
     const respuesta = {
       message: "Curso creado exitosamente",
@@ -332,7 +345,7 @@ export const getMisCursos = async (req, res) => {
   }
 };
 
-// Actualizar curso
+// ✅ MODIFICADO - Actualizar curso (con soporte para actualizar foto)
 export const updateCurso = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -349,6 +362,19 @@ export const updateCurso = async (req, res) => {
     // No permitir actualizar participantes directamente
     delete updateData.participantes;
     delete updateData.fechaCreacion;
+
+    // ✅ Si se subió una nueva foto
+    if (req.file) {
+      // Buscar el curso para obtener la foto antigua
+      const cursoAntiguo = await Curso.findById(id);
+      if (cursoAntiguo?.fotoPortadaUrl) {
+        // Eliminar foto antigua del servidor
+        eliminarArchivo(cursoAntiguo.fotoPortadaUrl);
+      }
+      
+      // Actualizar con la nueva foto
+      updateData.fotoPortadaUrl = `/uploads/fotos-perfil/${req.file.filename}`;
+    }
 
     const cursoActualizado = await Curso.findByIdAndUpdate(
       id,
@@ -372,17 +398,17 @@ export const updateCurso = async (req, res) => {
   } catch (error) {
     console.error('Error al actualizar curso:', error);
     res.status(500).json({
-      message: "Error interno del servidor"
+      message: "Error interno del servidor",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
 // Archivar curso (soft delete)
-// Archivar curso (soft delete) - Usar DELETE en lugar de PUT
 export const archivarCurso = async (req, res) => {
   try {
     const { id } = req.params;
-    const usuarioLogueado = req.user; // Desde el token JWT
+    const usuarioLogueado = req.user;
 
     // Validar que el ID sea válido
     if (!mongoose.Types.ObjectId.isValid(id)) {

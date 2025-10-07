@@ -19,14 +19,18 @@ import {
   cursoIdValidator
 } from '../middlewares/validators/cursoValidator.js';
 import { csvUpload } from '../middlewares/csvMiddleware.js';
+import { uploadFotoPerfil } from '../config/multerConfig.js';
 
 const router = express.Router();
 
-// Crear curso (CON OPCIÓN de archivo CSV)
+// Crear curso con foto de portada Y opcionalmente CSV
 router.post('/', 
   authMiddleware, 
   requireRole(['administrador', 'docente']),
-  csvUpload.single('archivo'), // Middleware de CSV (opcional)
+  uploadFotoPerfil.fields([
+    { name: 'fotoPortada', maxCount: 1 },
+    { name: 'archivo', maxCount: 1 }
+  ]),
   createCursoValidator, 
   createCurso
 );
@@ -38,7 +42,6 @@ router.get('/',
   getCursos
 );
 
-// ⚠️ IMPORTANTE: Las rutas específicas DEBEN ir ANTES de las rutas con parámetros
 // Obtener mis cursos (DEBE IR ANTES de /:id)
 router.get('/mis-cursos', 
   authMiddleware, 
@@ -52,15 +55,16 @@ router.get('/:id',
   getCursoById
 );
 
-// Actualizar curso
+// Actualizar curso (puede incluir nueva foto)
 router.put('/:id', 
   authMiddleware, 
-  requireRole(['administrador', 'docente']), 
+  requireRole(['administrador', 'docente']),
+  uploadFotoPerfil.single('fotoPortada'),
   updateCursoValidator, 
   updateCurso
 );
 
-// Archivar curso (soft delete) - CAMBIADO A DELETE ✅
+// Archivar curso (soft delete)
 router.delete('/:id', 
   authMiddleware, 
   requireRole(['administrador', 'docente']), 
