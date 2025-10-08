@@ -15,6 +15,7 @@ import { errorHandler } from "./middlewares/errorMiddleware.js";
 dotenv.config();
 
 const app = express();
+app.use(cors())
 
 // Obtener __dirname en ES modules
 const __filename = fileURLToPath(import.meta.url);
