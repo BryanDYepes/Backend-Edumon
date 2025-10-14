@@ -38,7 +38,7 @@ router.post('/',
 // Listar todos los cursos
 router.get('/', 
   authMiddleware, 
-  requireRole(['administrador', 'docente']), 
+  requireRole(['administrador', 'docente','padre']), 
   getCursos
 );
 
@@ -75,7 +75,7 @@ router.delete('/:id',
 // Gestión de participantes
 router.post('/:id/participantes', 
   authMiddleware, 
-  requireRole(['administrador', 'docente']), 
+  requireRole(['administrador', 'docente','padre']), 
   participanteValidator, 
   agregarParticipante
 );
