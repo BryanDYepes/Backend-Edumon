@@ -52,10 +52,15 @@ export const getModulos = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-    const { cursoId } = req.query;
+    const { cursoId, incluirInactivos } = req.query;
 
     // Construir filtro
-    const filter = { estado: { $ne: 'inactivo' } }; // Excluir inactivos por defecto
+    const filter = {};
+    
+    // Solo excluir inactivos si no se solicita incluirlos
+    if (incluirInactivos !== 'true') {
+      filter.estado = { $ne: 'inactivo' };
+    }
     
     if (cursoId) {
       if (!mongoose.Types.ObjectId.isValid(cursoId)) {
@@ -153,6 +158,7 @@ export const getModulosByCurso = async (req, res) => {
     }
 
     const { cursoId } = req.params;
+    const { incluirInactivos } = req.query;
 
     // Validar ObjectId
     if (!mongoose.Types.ObjectId.isValid(cursoId)) {
@@ -161,10 +167,15 @@ export const getModulosByCurso = async (req, res) => {
       });
     }
 
-    const modulos = await Modulo.find({ 
-      cursoId,
-      estado: { $ne: 'inactivo' } // Excluir inactivos
-    }).sort({ fechaCreacion: -1 });
+    const filter = { cursoId };
+    
+    // Solo excluir inactivos si no se solicita incluirlos
+    if (incluirInactivos !== 'true') {
+      filter.estado = { $ne: 'inactivo' };
+    }
+
+    const modulos = await Modulo.find(filter)
+      .sort({ fechaCreacion: -1 });
 
     res.json({
       modulos,
@@ -266,6 +277,62 @@ export const deleteModulo = async (req, res) => {
     console.error('Error al desactivar módulo:', error);
     res.status(500).json({
       message: "Error interno del servidor"
+    });
+  }
+};
+
+// 🆕 Desarchivar módulo (reactivar)
+export const restoreModulo = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        message: "Errores de validación",
+        errors: errors.array()
+      });
+    }
+
+    const { id } = req.params;
+
+    // Validar ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: "El ID del módulo no es válido"
+      });
+    }
+
+    // Buscar el módulo
+    const modulo = await Modulo.findById(id);
+
+    if (!modulo) {
+      return res.status(404).json({
+        message: "Módulo no encontrado"
+      });
+    }
+
+    // Verificar si ya está activo
+    if (modulo.estado === 'activo') {
+      return res.status(400).json({
+        message: "El módulo ya está activo"
+      });
+    }
+
+    // Reactivar el módulo
+    modulo.estado = 'activo';
+    await modulo.save();
+
+    // Poblar información del curso
+    await modulo.populate('cursoId', 'nombre descripcion fotoPortadaUrl docenteId participantes estado fechaCreacion');
+
+    res.json({
+      message: "Módulo reactivado exitosamente",
+      modulo: modulo
+    });
+  } catch (error) {
+    console.error('Error al reactivar módulo:', error);
+    res.status(500).json({
+      message: "Error interno del servidor",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
