@@ -5,7 +5,8 @@ import {
   getModuloById,
   getModulosByCurso,
   updateModulo, 
-  deleteModulo 
+  deleteModulo,
+  restoreModulo // 🆕 Importar nueva función
 } from '../controllers/moduloController.js';
 import { authMiddleware } from '../middlewares/authMiddleware.js';
 import { 
@@ -19,10 +20,11 @@ const router = express.Router();
 
 // Rutas protegidas
 router.post('/', authMiddleware, createModuloValidator, createModulo);
-router.get('/curso/:cursoId', authMiddleware, cursoIdValidator, getModulosByCurso); // 👈 2. MOVER esta línea ANTES de '/:id'
+router.get('/curso/:cursoId', authMiddleware, cursoIdValidator, getModulosByCurso);
 router.get('/', authMiddleware, getModulos);
 router.get('/:id', authMiddleware, moduloIdValidator, getModuloById);
 router.put('/:id', authMiddleware, updateModuloValidator, updateModulo);
 router.delete('/:id', authMiddleware, moduloIdValidator, deleteModulo);
+router.patch('/:id/restore', authMiddleware, moduloIdValidator, restoreModulo); // 🆕 Nueva ruta
 
 export default router;

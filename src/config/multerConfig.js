@@ -1,4 +1,3 @@
-// config/multerConfig.js
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -7,26 +6,17 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Crear carpeta uploads si no existe
-const uploadsDir = path.join(__dirname, '../uploads/fotos-perfil');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+// Crear carpetas si no existen
+const fotoPerfilDir = path.join(__dirname, '../uploads/fotos-perfil');
+const fotoPredeterminadaDir = path.join(__dirname, '../uploads/fotos-predeterminadas');
+
+if (!fs.existsSync(fotoPerfilDir)) {
+  fs.mkdirSync(fotoPerfilDir, { recursive: true });
 }
 
-// Configuración de almacenamiento para fotos de perfil
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadsDir);
-  },
-  filename: function (req, file, cb) {
-    // Generar nombre único: timestamp + nombre original sanitizado
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    const nameWithoutExt = path.basename(file.originalname, ext)
-      .replace(/[^a-zA-Z0-9]/g, '_'); // Sanitizar nombre
-    cb(null, `perfil-${uniqueSuffix}-${nameWithoutExt}${ext}`);
-  }
-});
+if (!fs.existsSync(fotoPredeterminadaDir)) {
+  fs.mkdirSync(fotoPredeterminadaDir, { recursive: true });
+}
 
 // Filtro para validar tipos de archivo de imagen
 const imageFileFilter = (req, file, cb) => {
@@ -39,12 +29,47 @@ const imageFileFilter = (req, file, cb) => {
   }
 };
 
-// Configuración de Multer para fotos de perfil
+// 📸 Configuración para fotos de perfil de USUARIOS
+const storageFotoPerfil = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, fotoPerfilDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    const nameWithoutExt = path.basename(file.originalname, ext)
+      .replace(/[^a-zA-Z0-9]/g, '_');
+    cb(null, `perfil-${uniqueSuffix}-${nameWithoutExt}${ext}`);
+  }
+});
+
 export const uploadFotoPerfil = multer({
-  storage: storage,
+  storage: storageFotoPerfil,
   fileFilter: imageFileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024 // 5MB máximo
+  }
+});
+
+// 🎨 Configuración para fotos PREDETERMINADAS (admin sube)
+const storageFotoPredeterminada = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, fotoPredeterminadaDir);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname);
+    const nameWithoutExt = path.basename(file.originalname, ext)
+      .replace(/[^a-zA-Z0-9]/g, '_');
+    // Nombre más simple para fotos predeterminadas
+    cb(null, `${nameWithoutExt}${ext}`);
+  }
+});
+
+export const uploadFotoPredeterminada = multer({
+  storage: storageFotoPredeterminada,
+  fileFilter: imageFileFilter,
+  limits: {
+    fileSize: 2 * 1024 * 1024 // 2MB máximo para predeterminadas
   }
 });
 
