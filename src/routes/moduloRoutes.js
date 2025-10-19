@@ -6,7 +6,7 @@ import {
   getModulosByCurso,
   updateModulo, 
   deleteModulo,
-  restoreModulo // 🆕 Importar nueva función
+  restoreModulo // Importar nueva función
 } from '../controllers/moduloController.js';
 import { authMiddleware } from '../middlewares/authMiddleware.js';
 import { 
@@ -25,6 +25,6 @@ router.get('/', authMiddleware, getModulos);
 router.get('/:id', authMiddleware, moduloIdValidator, getModuloById);
 router.put('/:id', authMiddleware, updateModuloValidator, updateModulo);
 router.delete('/:id', authMiddleware, moduloIdValidator, deleteModulo);
-router.patch('/:id/restore', authMiddleware, moduloIdValidator, restoreModulo); // 🆕 Nueva ruta
+router.patch('/:id/restore', authMiddleware, moduloIdValidator, restoreModulo); // Nueva ruta
 
 export default router;

@@ -102,19 +102,3 @@ export const userIdValidator = [
     .isMongoId()
     .withMessage('ID de usuario inválido')
 ];
-
-// Validador para actualizar foto de perfil
-export const updateFotoPerfilValidator = [
-  body('fotoUrl')
-    .notEmpty()
-    .withMessage('La URL de la foto es requerida')
-    .isString()
-    .withMessage('La URL debe ser texto')
-    .custom((value) => {
-      if (!value.startsWith('/uploads/fotos-perfil/') && 
-          !value.startsWith('/uploads/fotos-predeterminadas/')) {
-        throw new Error('URL de foto inválida. Debe ser de fotos-perfil o fotos-predeterminadas');
-      }
-      return true;
-    })
-];

@@ -281,7 +281,7 @@ export const deleteModulo = async (req, res) => {
   }
 };
 
-// 🆕 Desarchivar módulo (reactivar)
+// Desarchivar módulo (reactivar)
 export const restoreModulo = async (req, res) => {
   try {
     const errors = validationResult(req);

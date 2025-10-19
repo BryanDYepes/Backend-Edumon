@@ -5,9 +5,9 @@ import { validationResult } from 'express-validator';
 import csv from 'csv-parser';
 import { Readable } from 'stream';
 import mongoose from 'mongoose';
-import { eliminarArchivo } from '../config/multerConfig.js'; // ✅ NUEVO
+import { subirImagenCloudinary, eliminarArchivoCloudinary } from '../utils/cloudinaryUpload.js';
 
-// Función auxiliar para procesar CSV (reutilizable)
+// FUNCIÓN AUXILIAR: Procesar CSV
 async function procesarUsuariosCSV(file, cursoId) {
   const resultados = {
     exitosos: [],
@@ -160,7 +160,7 @@ async function procesarUsuariosCSV(file, cursoId) {
   }
 }
 
-// ✅ MODIFICADO - Crear curso CON OPCIÓN de carga masiva de usuarios y foto
+// CREAR CURSO (con imagen en Cloudinary)
 export const createCurso = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -181,35 +181,47 @@ export const createCurso = async (req, res) => {
       });
     }
 
-    // ✅ Determinar la URL de la foto
+    // Determinar la URL de la foto
     let urlFoto = fotoPortadaUrl || null;
+    let publicIdFoto = null;
     
-    // Si se subió un archivo de imagen, usar esa ruta
+    // Si se subió un archivo de imagen, subirlo a Cloudinary
     if (req.files?.fotoPortada?.[0]) {
-      urlFoto = `/uploads/fotos-perfil/${req.files.fotoPortada[0].filename}`;
+      const resultadoCloudinary = await subirImagenCloudinary(
+        req.files.fotoPortada[0].buffer,
+        req.files.fotoPortada[0].mimetype,
+        'fotos_cursos_portada' // Carpeta específica
+      );
+      urlFoto = resultadoCloudinary.url;
+      publicIdFoto = resultadoCloudinary.publicId;
     } else if (req.file && req.file.fieldname === 'fotoPortada') {
-      urlFoto = `/uploads/fotos-perfil/${req.file.filename}`;
+      const resultadoCloudinary = await subirImagenCloudinary(
+        req.file.buffer,
+        req.file.mimetype,
+        'fotos_cursos_portada' // Carpeta específica
+      );
+      urlFoto = resultadoCloudinary.url;
+      publicIdFoto = resultadoCloudinary.publicId;
     }
 
     // Crear el curso
     const nuevoCurso = new Curso({
       nombre,
       descripcion,
-      fotoPortadaUrl: urlFoto, // ✅ Usar la URL procesada
+      fotoPortadaUrl: urlFoto,
+      fotoPortadaPublicId: publicIdFoto,
       docenteId,
       participantes: [{ usuarioId: docenteId, etiqueta: 'docente' }]
     });
 
     const cursoGuardado = await nuevoCurso.save();
 
-    // ✅ Si hay archivo CSV, procesar usuarios masivamente
+    // Si hay archivo CSV, procesar usuarios masivamente
     let resultadosCarga = null;
     if (req.files?.archivo?.[0]) {
-      // Caso: múltiples archivos con fields()
       resultadosCarga = await procesarUsuariosCSV(req.files.archivo[0], cursoGuardado._id);
       await cursoGuardado.populate('participantes.usuarioId', 'nombre apellido correo rol');
     } else if (req.file && req.file.fieldname === 'archivo') {
-      // Caso: archivo único CSV
       resultadosCarga = await procesarUsuariosCSV(req.file, cursoGuardado._id);
       await cursoGuardado.populate('participantes.usuarioId', 'nombre apellido correo rol');
     }
@@ -221,7 +233,6 @@ export const createCurso = async (req, res) => {
       curso: cursoGuardado
     };
 
-    // Si se procesó CSV, agregar resultados
     if (resultadosCarga) {
       respuesta.cargaMasiva = resultadosCarga;
     }
@@ -237,7 +248,7 @@ export const createCurso = async (req, res) => {
   }
 };
 
-// Listar cursos con filtros y paginación
+// LISTAR CURSOS (con filtros y paginación)
 export const getCursos = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -280,7 +291,7 @@ export const getCursos = async (req, res) => {
   }
 };
 
-// Obtener curso por ID
+// OBTENER CURSO POR ID
 export const getCursoById = async (req, res) => {
   try {
     const curso = await Curso.findById(req.params.id)
@@ -303,7 +314,7 @@ export const getCursoById = async (req, res) => {
   }
 };
 
-// Obtener cursos donde el usuario es participante
+// OBTENER MIS CURSOS
 export const getMisCursos = async (req, res) => {
   try {
     const usuarioId = req.user.userId;
@@ -345,7 +356,7 @@ export const getMisCursos = async (req, res) => {
   }
 };
 
-// ✅ MODIFICADO - Actualizar curso (con soporte para actualizar foto)
+// ACTUALIZAR CURSO (con nueva imagen en Cloudinary)
 export const updateCurso = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -359,21 +370,30 @@ export const updateCurso = async (req, res) => {
     const { id } = req.params;
     const updateData = { ...req.body };
 
-    // No permitir actualizar participantes directamente
+    // No permitir actualizar estos campos manualmente
     delete updateData.participantes;
     delete updateData.fechaCreacion;
+    delete updateData.fotoPortadaPublicId;
 
-    // ✅ Si se subió una nueva foto
+    // Si se subió una nueva foto
     if (req.file) {
-      // Buscar el curso para obtener la foto antigua
+      // Buscar el curso para obtener el public_id de la foto antigua
       const cursoAntiguo = await Curso.findById(id);
-      if (cursoAntiguo?.fotoPortadaUrl) {
-        // Eliminar foto antigua del servidor
-        eliminarArchivo(cursoAntiguo.fotoPortadaUrl);
+      
+      // Eliminar foto antigua de Cloudinary si existe
+      if (cursoAntiguo?.fotoPortadaPublicId) {
+        await eliminarArchivoCloudinary(cursoAntiguo.fotoPortadaPublicId, 'image');
       }
       
-      // Actualizar con la nueva foto
-      updateData.fotoPortadaUrl = `/uploads/fotos-perfil/${req.file.filename}`;
+      // Subir nueva foto a Cloudinary
+      const resultadoCloudinary = await subirImagenCloudinary(
+        req.file.buffer,
+        req.file.mimetype,
+        'fotos_cursos_portada' // Carpeta específica
+      );
+      
+      updateData.fotoPortadaUrl = resultadoCloudinary.url;
+      updateData.fotoPortadaPublicId = resultadoCloudinary.publicId;
     }
 
     const cursoActualizado = await Curso.findByIdAndUpdate(
@@ -404,20 +424,18 @@ export const updateCurso = async (req, res) => {
   }
 };
 
-// Archivar curso (soft delete)
+// ARCHIVAR CURSO (soft delete)
 export const archivarCurso = async (req, res) => {
   try {
     const { id } = req.params;
     const usuarioLogueado = req.user;
 
-    // Validar que el ID sea válido
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ 
         message: "ID de curso no válido" 
       });
     }
 
-    // Buscar el curso primero
     const curso = await Curso.findById(id);
     
     if (!curso) {
@@ -426,14 +444,13 @@ export const archivarCurso = async (req, res) => {
       });
     }
 
-    // Validar que no esté ya archivado
     if (curso.estado === 'archivado') {
       return res.status(400).json({ 
         message: "El curso ya está archivado" 
       });
     }
 
-    // Validar permisos (solo el docente del curso o admin puede archivar)
+    // Validar permisos
     if (usuarioLogueado.rol === 'docente' && 
         curso.docenteId.toString() !== usuarioLogueado.userId) {
       return res.status(403).json({ 
@@ -441,11 +458,9 @@ export const archivarCurso = async (req, res) => {
       });
     }
 
-    // Archivar el curso (soft delete)
     curso.estado = 'archivado';
     await curso.save();
 
-    // Poblar datos para la respuesta
     await curso.populate('docenteId', 'nombre apellido correo');
     await curso.populate('participantes.usuarioId', 'nombre apellido correo rol');
 
@@ -463,21 +478,19 @@ export const archivarCurso = async (req, res) => {
   }
 };
 
-// Agregar participante al curso
+// AGREGAR PARTICIPANTE AL CURSO
 export const agregarParticipante = async (req, res) => {
   try {
     const { id } = req.params;
     const { nombre, apellido, telefono, cedula } = req.body;
     const usuarioLogueado = req.user;
 
-    // Validar campos requeridos
     if (!nombre || !apellido || !telefono || !cedula) {
       return res.status(400).json({ 
         message: "Todos los campos son requeridos (nombre, apellido, telefono, cedula)" 
       });
     }
 
-    // Validar que el ID del curso sea válido
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ 
         message: "ID de curso no válido" 
@@ -491,7 +504,7 @@ export const agregarParticipante = async (req, res) => {
       });
     }
 
-    // Validar permisos (solo el docente del curso o admin)
+    // Validar permisos
     if (usuarioLogueado.rol === 'docente' && 
         curso.docenteId.toString() !== usuarioLogueado.userId) {
       return res.status(403).json({ 
@@ -502,7 +515,6 @@ export const agregarParticipante = async (req, res) => {
     const correoTemporal = `${cedula.trim()}@temp.com`;
     let detalles = {};
 
-    // Buscar si el usuario ya existe
     let usuario = await User.findOne({
       $or: [
         { correo: correoTemporal },
@@ -511,7 +523,6 @@ export const agregarParticipante = async (req, res) => {
     });
 
     if (usuario) {
-      // Usuario existe
       if (curso.esParticipante(usuario._id)) {
         return res.status(400).json({ 
           message: "El usuario ya está inscrito en este curso",
@@ -522,17 +533,14 @@ export const agregarParticipante = async (req, res) => {
         });
       }
 
-      // Agregar al curso
       curso.agregarParticipante(usuario._id, 'padre');
-      detalles = {
-        nombre: `${usuario.nombre} ${usuario.apellido}`,
+      detalles = {nombre: `${usuario.nombre} ${usuario.apellido}`,
         cedula: cedula.trim(),
         telefono: usuario.telefono,
         accion: "Agregado al curso (usuario existente)"
       };
 
     } else {
-      // Crear nuevo usuario
       const nuevoUsuario = new User({
         nombre: nombre.trim(),
         apellido: apellido.trim(),
@@ -567,7 +575,6 @@ export const agregarParticipante = async (req, res) => {
   } catch (error) {
     console.error('Error al agregar participante:', error);
     
-    // Manejar error de duplicado
     if (error.code === 11000) {
       return res.status(400).json({ 
         message: "Ya existe un usuario con esta cédula o correo" 
@@ -581,7 +588,7 @@ export const agregarParticipante = async (req, res) => {
   }
 };
 
-// Remover participante del curso
+// REMOVER PARTICIPANTE DEL CURSO
 export const removerParticipante = async (req, res) => {
   try {
     const { id, usuarioId } = req.params;
@@ -624,7 +631,7 @@ export const removerParticipante = async (req, res) => {
   }
 };
 
-// Registrar usuarios masivamente desde CSV (endpoint independiente)
+// REGISTRAR USUARIOS MASIVAMENTE DESDE CSV
 export const registrarUsuariosMasivo = async (req, res) => {
   try {
     const { id } = req.params;
@@ -658,6 +665,91 @@ export const registrarUsuariosMasivo = async (req, res) => {
 
   } catch (error) {
     console.error('Error en registro masivo:', error);
+    res.status(500).json({
+      message: "Error interno del servidor",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+// OBTENER PARTICIPANTES DE UN CURSO (para selección en tareas)
+export const getParticipantesCurso = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { etiqueta, search, page = 1, limit = 50 } = req.query;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ 
+        message: "ID de curso no válido" 
+      });
+    }
+
+    const curso = await Curso.findById(id)
+      .populate({
+        path: 'participantes.usuarioId',
+        select: 'nombre apellido correo telefono rol estado'
+      });
+
+    if (!curso) {
+      return res.status(404).json({
+        message: "Curso no encontrado"
+      });
+    }
+
+    // Filtrar participantes
+    let participantes = curso.participantes.filter(p => p.usuarioId !== null);
+
+    // Filtrar por etiqueta (padre, docente)
+    if (etiqueta) {
+      participantes = participantes.filter(p => p.etiqueta === etiqueta);
+    }
+
+    // Buscar por nombre, apellido o correo
+    if (search) {
+      const searchLower = search.toLowerCase();
+      participantes = participantes.filter(p => {
+        const usuario = p.usuarioId;
+        return (
+          usuario.nombre.toLowerCase().includes(searchLower) ||
+          usuario.apellido.toLowerCase().includes(searchLower) ||
+          usuario.correo.toLowerCase().includes(searchLower)
+        );
+      });
+    }
+
+    // Paginación
+    const skip = (page - 1) * limit;
+    const total = participantes.length;
+    const paginados = participantes.slice(skip, skip + parseInt(limit));
+
+    // Formatear respuesta
+    const participantesFormateados = paginados.map(p => ({
+      _id: p.usuarioId._id,
+      nombre: p.usuarioId.nombre,
+      apellido: p.usuarioId.apellido,
+      correo: p.usuarioId.correo,
+      telefono: p.usuarioId.telefono,
+      rol: p.usuarioId.rol,
+      estado: p.usuarioId.estado,
+      etiqueta: p.etiqueta,
+      nombreCompleto: `${p.usuarioId.nombre} ${p.usuarioId.apellido}`
+    }));
+
+    res.json({
+      cursoId: curso._id,
+      cursoNombre: curso.nombre,
+      participantes: participantesFormateados,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+        totalParticipantes: total,
+        hasNextPage: parseInt(page) < Math.ceil(total / limit),
+        hasPrevPage: parseInt(page) > 1
+      }
+    });
+
+  } catch (error) {
+    console.error('Error al obtener participantes del curso:', error);
     res.status(500).json({
       message: "Error interno del servidor",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined

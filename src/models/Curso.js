@@ -1,4 +1,3 @@
-// models/Curso.js
 import mongoose from "mongoose";
 
 const participanteSchema = new mongoose.Schema({
@@ -28,22 +27,31 @@ const cursoSchema = new mongoose.Schema({
     maxlength: 500
   },
   fotoPortadaUrl: { 
-  type: String,
-  validate: {
-    validator: function(v) {
-      if (!v) return true; // Campo opcional
-      
-      // ✅ Aceptar URLs externas (http:// o https://)
-      const urlExterna = /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i.test(v);
-      
-      // ✅ Aceptar rutas locales (/uploads/...)
-      const rutaLocal = /^\/uploads\/.+\.(jpg|jpeg|png|gif|webp)$/i.test(v);
-      
-      return urlExterna || rutaLocal;
-    },
-    message: 'La URL de la foto debe ser válida y terminar en jpg, jpeg, png, gif o webp'
-  }
-},
+    type: String,
+    default: null,
+    validate: {
+      validator: function(v) {
+        if (!v) return true;
+        
+        // Aceptar URLs de Cloudinary
+        const urlCloudinary = /^https:\/\/res\.cloudinary\.com\/.+/i.test(v);
+        
+        // Aceptar URLs externas (http o https)
+        const urlExterna = /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i.test(v);
+        
+        // Aceptar rutas locales (por compatibilidad)
+        const rutaLocal = /^\/uploads\/.+\.(jpg|jpeg|png|gif|webp)$/i.test(v);
+        
+        return urlCloudinary || urlExterna || rutaLocal;
+      },
+      message: 'La URL de la foto debe ser válida'
+    }
+  },
+  // Guardar public_id para poder eliminar la imagen después
+  fotoPortadaPublicId: {
+    type: String,
+    default: null
+  },
   docenteId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User',
@@ -56,9 +64,9 @@ const cursoSchema = new mongoose.Schema({
       message: 'El docenteId debe corresponder a un usuario con rol docente'
     }
   },
-   participantes: {
+  participantes: {
     type: [participanteSchema],
-    default: [] // ✅ valor por defecto
+    default: []
   },
   fechaCreacion: { 
     type: Date, 
@@ -80,8 +88,9 @@ cursoSchema.index({ docenteId: 1 });
 cursoSchema.index({ estado: 1 });
 cursoSchema.index({ 'participantes.usuarioId': 1 });
 
+// Virtual para contar participantes
 cursoSchema.virtual('totalParticipantes').get(function() {
-  return Array.isArray(this.participantes) ? this.participantes.length : 0; // ✅ seguro
+  return Array.isArray(this.participantes) ? this.participantes.length : 0;
 });
 
 // Método para verificar si un usuario es participante

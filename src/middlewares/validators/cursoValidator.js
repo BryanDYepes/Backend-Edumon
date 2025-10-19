@@ -1,4 +1,3 @@
-// middlewares/validators/cursoValidator.js
 import { body, param } from 'express-validator';
 
 export const createCursoValidator = [
@@ -22,7 +21,7 @@ export const createCursoValidator = [
     .isMongoId()
     .withMessage('El ID del docente debe ser un ObjectId válido'),
 
-  // ✅ SOLUCIÓN: Validar solo si se envía como string Y no hay archivo
+  // ✅ Validar solo si se envía como string Y no hay archivo
   body('fotoPortadaUrl')
     .optional({ nullable: true, checkFalsy: true })
     .custom((value, { req }) => {
@@ -60,7 +59,6 @@ export const updateCursoValidator = [
     .withMessage('La descripción debe tener entre 10 y 500 caracteres')
     .trim(),
 
-  // ✅ SOLUCIÓN: Igual que en create
   body('fotoPortadaUrl')
     .optional({ nullable: true, checkFalsy: true })
     .custom((value, { req }) => {

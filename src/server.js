@@ -12,7 +12,6 @@ import cursoRoutes from "./routes/cursoRoutes.js";
 import moduloRoutes from './routes/moduloRoutes.js';
 import tareaRoutes from './routes/tareaRoutes.js';
 import entregaRoutes from './routes/entregaRoutes.js';
-import fotoPerfilRoutes from './routes/fotoPerfilRoutes.js';
 
 // Importar middlewares
 import { errorHandler } from "./middlewares/errorMiddleware.js";
@@ -30,9 +29,7 @@ const __dirname = path.dirname(__filename);
 // Conectar a la base de datos
 connectDB();
 
-// ============================================
 // MIDDLEWARES GLOBALES
-// ============================================
 
 // CORS - Permitir peticiones desde otros dominios
 app.use(cors({
@@ -44,18 +41,7 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Servir archivos estáticos (uploads)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// Logger simple de requests (opcional)
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-  next();
-});
-
-// ============================================
 // RUTAS
-// ============================================
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
@@ -63,11 +49,8 @@ app.use("/api/cursos", cursoRoutes);
 app.use('/api/modulos', moduloRoutes);
 app.use('/api/tareas', tareaRoutes);
 app.use('/api/entregas', entregaRoutes);
-app.use('/api/fotos-perfil', fotoPerfilRoutes);
 
-// ============================================
 // RUTA DE SALUD (Health Check)
-// ============================================
 
 app.get("/", (req, res) => {
   res.json({ 
@@ -85,9 +68,7 @@ app.get("/health", (req, res) => {
   });
 });
 
-// ============================================
 // MANEJO DE ERRORES
-// ============================================
 
 // Middleware de errores personalizado
 app.use(errorHandler);
@@ -101,30 +82,24 @@ app.use((req, res) => {
   });
 });
 
-// ============================================
 // INICIAR SERVIDOR
-// ============================================
 
 const PORT = process.env.PORT || 4000;
 
 app.listen(PORT, () => {
   console.log('='.repeat(50));
-  console.log(`🚀 Servidor corriendo en: http://localhost:${PORT}`);
-  console.log(`📁 Archivos estáticos en: http://localhost:${PORT}/uploads`);
-  console.log(`🏥 Health check: http://localhost:${PORT}/health`);
-  console.log(`📅 Iniciado: ${new Date().toLocaleString()}`);
+  console.log(`Servidor corriendo en: http://localhost:${PORT}`);
+  console.log(`Iniciado: ${new Date().toLocaleString()}`);
   console.log('='.repeat(50));
 });
 
 // Manejo de errores no capturados
 process.on('unhandledRejection', (err) => {
-  console.error('❌ Unhandled Rejection:', err);
-  // En producción, podrías querer cerrar el servidor aquí
-  // process.exit(1);
+  console.error('Unhandled Rejection:', err);
 });
 
 process.on('uncaughtException', (err) => {
-  console.error('❌ Uncaught Exception:', err);
+  console.error('Uncaught Exception:', err);
   process.exit(1);
 });
 

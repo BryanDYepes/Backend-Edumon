@@ -1,4 +1,3 @@
-// routes/cursoRoutes.js
 import express from 'express';
 import {
   createCurso,
@@ -9,7 +8,8 @@ import {
   archivarCurso,
   agregarParticipante,
   removerParticipante,
-  registrarUsuariosMasivo
+  registrarUsuariosMasivo,
+  getParticipantesCurso
 } from '../controllers/cursoController.js';
 import { authMiddleware, requireRole } from '../middlewares/authMiddleware.js';
 import {
@@ -18,16 +18,19 @@ import {
   participanteValidator,
   cursoIdValidator
 } from '../middlewares/validators/cursoValidator.js';
-import { csvUpload } from '../middlewares/csvMiddleware.js';
-import { uploadFotoPerfil } from '../config/multerConfig.js';
+import { 
+  uploadImagenCloudinary, 
+  uploadImagenYCSV,        // MPORTAR EL NUEVO
+  uploadCSVCloudinary 
+} from '../middlewares/cloudinaryMiddleware.js';
 
 const router = express.Router();
 
-// Crear curso con foto de portada Y opcionalmente CSV
+// CREAR CURSO (con foto de portada + CSV opcional)
 router.post('/', 
   authMiddleware, 
   requireRole(['administrador', 'docente']),
-  uploadFotoPerfil.fields([
+  uploadImagenYCSV.fields([           // CAMBIAR A uploadImagenYCSV
     { name: 'fotoPortada', maxCount: 1 },
     { name: 'archivo', maxCount: 1 }
   ]),
@@ -35,36 +38,44 @@ router.post('/',
   createCurso
 );
 
-// Listar todos los cursos
+// LISTAR TODOS LOS CURSOS
 router.get('/', 
   authMiddleware, 
-  requireRole(['administrador', 'docente','padre']), 
+  requireRole(['administrador', 'docente', 'padre']), 
   getCursos
 );
 
-// Obtener mis cursos (DEBE IR ANTES de /:id)
+// OBTENER MIS CURSOS
 router.get('/mis-cursos', 
   authMiddleware, 
   getMisCursos
 );
 
-// Obtener curso por ID (DEBE IR DESPUÉS de /mis-cursos)
+// Obtener participantes de un curso
+router.get('/:id/participantes', 
+  authMiddleware, 
+  requireRole(['administrador', 'docente']),
+  cursoIdValidator,
+  getParticipantesCurso
+);
+
+// OBTENER CURSO POR ID
 router.get('/:id', 
   authMiddleware, 
   cursoIdValidator, 
   getCursoById
 );
 
-// Actualizar curso (puede incluir nueva foto)
+// ACTUALIZAR CURSO (solo imagen, sin CSV)
 router.put('/:id', 
   authMiddleware, 
   requireRole(['administrador', 'docente']),
-  uploadFotoPerfil.single('fotoPortada'),
+  uploadImagenCloudinary.single('fotoPortada'), // Solo imagen aquí
   updateCursoValidator, 
   updateCurso
 );
 
-// Archivar curso (soft delete)
+// ARCHIVAR CURSO (soft delete)
 router.delete('/:id', 
   authMiddleware, 
   requireRole(['administrador', 'docente']), 
@@ -72,26 +83,27 @@ router.delete('/:id',
   archivarCurso
 );
 
-// Gestión de participantes
+// AGREGAR PARTICIPANTE INDIVIDUAL
 router.post('/:id/participantes', 
   authMiddleware, 
-  requireRole(['administrador', 'docente','padre']), 
+  requireRole(['administrador', 'docente', 'padre']), 
   participanteValidator, 
   agregarParticipante
 );
 
+// REMOVER PARTICIPANTE
 router.delete('/:id/participantes/:usuarioId', 
   authMiddleware, 
   requireRole(['administrador', 'docente']), 
   removerParticipante
 );
 
-// Carga masiva independiente (para agregar usuarios después de crear el curso)
+// CARGA MASIVA DE USUARIOS (solo CSV)
 router.post('/:id/usuarios-masivo', 
   authMiddleware, 
   requireRole(['administrador', 'docente']), 
   cursoIdValidator,
-  csvUpload.single('archivo'),
+  uploadCSVCloudinary.single('archivo'), // Solo CSV aquí
   registrarUsuariosMasivo
 );
 

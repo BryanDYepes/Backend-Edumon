@@ -48,7 +48,28 @@ export const createTareaValidator = [
   
   body('moduloId')
     .notEmpty().withMessage('El ID del módulo es obligatorio')
-    .isMongoId().withMessage('El ID del módulo no es válido')
+    .isMongoId().withMessage('El ID del módulo no es válido'),
+  
+  // NUEVAS VALIDACIONES
+  body('asignacionTipo')
+    .optional()
+    .isIn(["todos", "seleccionados"])
+    .withMessage('El tipo de asignación debe ser "todos" o "seleccionados"'),
+  
+  body('participantesSeleccionados')
+    .optional()
+    .isArray().withMessage('Los participantes seleccionados deben ser un array')
+    .custom((value, { req }) => {
+      // Si es "seleccionados", debe tener al menos un participante
+      if (req.body.asignacionTipo === 'seleccionados' && (!value || value.length === 0)) {
+        throw new Error('Debe seleccionar al menos un participante');
+      }
+      return true;
+    }),
+  
+  body('participantesSeleccionados.*')
+    .optional()
+    .isMongoId().withMessage('Los IDs de participantes deben ser válidos')
 ];
 
 export const updateTareaValidator = [
@@ -89,7 +110,27 @@ export const updateTareaValidator = [
   
   body('moduloId')
     .optional()
-    .isMongoId().withMessage('El ID del módulo no es válido')
+    .isMongoId().withMessage('El ID del módulo no es válido'),
+  
+  // NUEVAS VALIDACIONES PARA UPDATE
+  body('asignacionTipo')
+    .optional()
+    .isIn(["todos", "seleccionados"])
+    .withMessage('El tipo de asignación debe ser "todos" o "seleccionados"'),
+  
+  body('participantesSeleccionados')
+    .optional()
+    .isArray().withMessage('Los participantes seleccionados deben ser un array')
+    .custom((value, { req }) => {
+      if (req.body.asignacionTipo === 'seleccionados' && (!value || value.length === 0)) {
+        throw new Error('Debe seleccionar al menos un participante');
+      }
+      return true;
+    }),
+  
+  body('participantesSeleccionados.*')
+    .optional()
+    .isMongoId().withMessage('Los IDs de participantes deben ser válidos')
 ];
 
 export const tareaIdValidator = [

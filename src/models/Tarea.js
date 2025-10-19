@@ -1,5 +1,35 @@
 import mongoose from "mongoose";
 
+const archivoAdjuntoSchema = new mongoose.Schema({
+  tipo: {
+    type: String,
+    enum: ['archivo', 'enlace'],
+    required: true
+  },
+  url: {
+    type: String,
+    required: true
+  },
+  nombre: {
+    type: String,
+    required: true
+  },
+  // Solo para archivos subidos
+  publicId: {
+    type: String
+  },
+  formato: {
+    type: String
+  },
+  tamano: {
+    type: Number
+  },
+  // Solo para enlaces
+  descripcion: {
+    type: String
+  }
+}, { _id: false });
+
 const tareaSchema = new mongoose.Schema({
   titulo: { 
     type: String, 
@@ -37,8 +67,8 @@ const tareaSchema = new mongoose.Schema({
     },
     required: [true, 'El tipo de entrega es obligatorio']
   },
-  archivosAdjuntos: { 
-    type: [String],
+  archivosAdjuntos: {
+    type: [archivoAdjuntoSchema],
     default: []
   },
   criterios: { 
@@ -62,6 +92,31 @@ const tareaSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Modulo',
     required: [true, 'El ID del módulo es obligatorio']
+  },
+  asignacionTipo: {
+    type: String,
+    enum: {
+      values: ["todos", "seleccionados"],
+      message: '{VALUE} no es un tipo de asignación válido'
+    },
+    default: "todos",
+    required: [true, 'El tipo de asignación es obligatorio']
+  },
+  participantesSeleccionados: {
+    type: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }],
+    default: [],
+    validate: {
+      validator: function(participantes) {
+        if (this.asignacionTipo === "seleccionados" && participantes.length === 0) {
+          return false;
+        }
+        return true;
+      },
+      message: 'Debe seleccionar al menos un participante cuando el tipo de asignación es "seleccionados"'
+    }
   }
 }, { 
   timestamps: true,
@@ -72,10 +127,34 @@ const tareaSchema = new mongoose.Schema({
 // Índices para mejorar búsquedas
 tareaSchema.index({ cursoId: 1, moduloId: 1, fechaEntrega: -1 });
 tareaSchema.index({ docenteId: 1, estado: 1 });
+tareaSchema.index({ participantesSeleccionados: 1 });
 
 // Virtual para saber si la tarea está vencida
 tareaSchema.virtual('estaVencida').get(function() {
   return this.fechaEntrega < new Date() && this.estado === 'publicada';
+});
+
+// Virtual para contar archivos adjuntos
+tareaSchema.virtual('totalArchivos').get(function() {
+  return this.archivosAdjuntos ? this.archivosAdjuntos.length : 0;
+});
+
+// Virtual para obtener solo archivos (no enlaces)
+tareaSchema.virtual('soloArchivos').get(function() {
+  return this.archivosAdjuntos?.filter(a => a.tipo === 'archivo') || [];
+});
+
+// Virtual para obtener solo enlaces
+tareaSchema.virtual('soloEnlaces').get(function() {
+  return this.archivosAdjuntos?.filter(a => a.tipo === 'enlace') || [];
+});
+
+// Middleware pre-save para limpiar participantes si es "todos"
+tareaSchema.pre('save', function(next) {
+  if (this.asignacionTipo === 'todos') {
+    this.participantesSeleccionados = [];
+  }
+  next();
 });
 
 export default mongoose.model("Tarea", tareaSchema);
