@@ -54,7 +54,7 @@ app.use('/api/entregas', entregaRoutes);
 
 app.get("/", (req, res) => {
   res.json({ 
-    message: "API de E-Learning funcionando correctamente",
+    message: "APIs funcionando correctamente",
     version: "1.0.0",
     timestamp: new Date().toISOString()
   });

@@ -7,7 +7,14 @@ export const createEntregaValidator = [
   
   body('padreId')
     .notEmpty().withMessage('El ID del padre es obligatorio')
-    .isMongoId().withMessage('El ID del padre no es válido'),
+    .isMongoId().withMessage('El ID del padre no es válido')
+    .custom((value, { req }) => {
+      // Validar que el padreId sea el mismo que el usuario autenticado
+      if (req.user && value !== req.user.userId) {
+        throw new Error('Solo puedes crear entregas para ti mismo');
+      }
+      return true;
+    }),
   
   body('archivos')
     .optional()
@@ -40,7 +47,24 @@ export const updateEntregaValidator = [
   body('estado')
     .optional()
     .isIn(["borrador", "enviada", "tarde"])
-    .withMessage('Estado no válido')
+    .withMessage('Estado no válido'),
+  
+  // No permitir cambiar padreId ni tareaId
+  body('padreId')
+    .custom((value) => {
+      if (value !== undefined) {
+        throw new Error('No puedes cambiar el padre de una entrega');
+      }
+      return true;
+    }),
+  
+  body('tareaId')
+    .custom((value) => {
+      if (value !== undefined) {
+        throw new Error('No puedes cambiar la tarea de una entrega');
+      }
+      return true;
+    })
 ];
 
 export const calificarEntregaValidator = [
@@ -60,6 +84,13 @@ export const calificarEntregaValidator = [
   body('docenteId')
     .notEmpty().withMessage('El ID del docente es obligatorio')
     .isMongoId().withMessage('El ID del docente no es válido')
+    .custom((value, { req }) => {
+      // Validar que el docenteId sea el mismo que el usuario autenticado
+      if (req.user && value !== req.user.userId) {
+        throw new Error('Solo puedes calificar con tu propio ID de docente');
+      }
+      return true;
+    })
 ];
 
 export const entregaIdValidator = [

@@ -116,20 +116,61 @@ export const createTarea = async (req, res) => {
   }
 };
 
-// Listar tareas con paginación y filtros
+// Listar tareas con paginación, filtros y permisos
 export const getTareas = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
     const { cursoId, moduloId, docenteId, estado, asignacionTipo } = req.query;
+    
+    const userId = req.user.id;
+    const userRole = req.user.rol;
 
     const filter = {};
+    
+    // Filtros básicos opcionales
     if (cursoId) filter.cursoId = cursoId;
     if (moduloId) filter.moduloId = moduloId;
     if (docenteId) filter.docenteId = docenteId;
     if (estado) filter.estado = estado;
     if (asignacionTipo) filter.asignacionTipo = asignacionTipo;
+
+    // FILTRADO SEGÚN ROL Y PERMISOS
+    if (userRole === 'docente') {
+      // Opción 1: Docentes ven SOLO sus tareas
+      filter.docenteId = userId;
+      
+      // Opción 2: Docentes ven todas las tareas (comentar línea anterior y descomentar esta)
+      // No agregar filtro adicional
+    } 
+    else if (userRole === 'estudiante' || userRole === 'padre') {
+      // Estudiantes/Padres solo ven:
+      // 1. Tareas asignadas a "todos" en cursos donde participan
+      // 2. Tareas donde están específicamente seleccionados
+      
+      // Obtener cursos donde el usuario participa
+      const Curso = (await import('../models/Curso.js')).default;
+      const cursosDelUsuario = await Curso.find({
+        'participantes.usuarioId': userId
+      }).select('_id');
+      
+      const cursoIds = cursosDelUsuario.map(c => c._id);
+
+      filter.$or = [
+        // Tareas para "todos" en mis cursos
+        {
+          asignacionTipo: 'todos',
+          cursoId: { $in: cursoIds }
+        },
+        // Tareas donde estoy seleccionado específicamente
+        {
+          asignacionTipo: 'seleccionados',
+          participantesSeleccionados: userId
+        }
+      ];
+    }
+    // Si es admin, no agregar filtros (ve todo)
 
     const tareas = await Tarea.find(filter)
       .populate('docenteId', 'nombre apellido')
@@ -162,7 +203,8 @@ export const getTareas = async (req, res) => {
   } catch (error) {
     console.error('Error al obtener tareas:', error);
     res.status(500).json({
-      message: "Error interno del servidor"
+      message: "Error interno del servidor",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

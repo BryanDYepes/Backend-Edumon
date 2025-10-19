@@ -14,6 +14,11 @@ import {
   updateTareaValidator,
   tareaIdValidator 
 } from '../middlewares/validators/tareaValidator.js';
+import { 
+  canViewTarea, 
+  canModifyTarea,
+  filterTareasForUser 
+} from '../middlewares/tareaAuthMiddleware.js';
 
 const router = express.Router();
 
@@ -21,15 +26,8 @@ const router = express.Router();
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
-  // Tipos MIME permitidos
   const allowedMimeTypes = [
-    // Imágenes
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    'image/svg+xml',
-    // Documentos
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -37,23 +35,10 @@ const fileFilter = (req, file, cb) => {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/vnd.ms-powerpoint',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    // Texto
-    'text/plain',
-    'text/csv',
-    // Videos
-    'video/mp4',
-    'video/mpeg',
-    'video/quicktime',
-    'video/x-msvideo',
-    'video/webm',
-    // Audio
-    'audio/mpeg',
-    'audio/wav',
-    'audio/ogg',
-    // Comprimidos
-    'application/zip',
-    'application/x-rar-compressed',
-    'application/x-7z-compressed'
+    'text/plain', 'text/csv',
+    'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo', 'video/webm',
+    'audio/mpeg', 'audio/wav', 'audio/ogg',
+    'application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed'
   ];
 
   if (allowedMimeTypes.includes(file.mimetype)) {
@@ -67,36 +52,67 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB máximo por archivo
-    files: 10 // Máximo 10 archivos por petición
+    fileSize: 50 * 1024 * 1024, // 50MB
+    files: 10
   }
 });
 
-// Rutas
+// ============ RUTAS ============
+
+// Crear tarea - Solo docentes pueden crear
 router.post(
   '/', 
   authMiddleware, 
-  upload.array('archivos', 10), // Campo "archivos", máximo 10
+  upload.array('archivos', 10),
   createTareaValidator, 
   createTarea
 );
 
-router.get('/', authMiddleware, getTareas);
+// Listar tareas - Con filtrado automático según usuario
+router.get(
+  '/', 
+  authMiddleware, 
+  filterTareasForUser,
+  getTareas
+);
 
-router.get('/:id', authMiddleware, tareaIdValidator, getTareaById);
+// Ver tarea específica - Verifica permisos de visualización
+router.get(
+  '/:id', 
+  authMiddleware, 
+  tareaIdValidator,
+  canViewTarea, // MIDDLEWARE DE VALIDACIÓN
+  getTareaById
+);
 
+// Actualizar tarea - Solo el docente asignado
 router.put(
   '/:id', 
   authMiddleware, 
   upload.array('archivos', 10),
   tareaIdValidator, 
+  canModifyTarea, // MIDDLEWARE DE VALIDACIÓN
   updateTareaValidator, 
   updateTarea
 );
 
-router.patch('/:id/close', authMiddleware, tareaIdValidator, closeTarea);
+// Cerrar tarea - Solo el docente asignado
+router.patch(
+  '/:id/close', 
+  authMiddleware, 
+  tareaIdValidator,
+  canModifyTarea, // MIDDLEWARE DE VALIDACIÓN
+  closeTarea
+);
 
-router.delete('/:id', authMiddleware, tareaIdValidator, deleteTarea);
+// Eliminar tarea - Solo el docente asignado
+router.delete(
+  '/:id', 
+  authMiddleware, 
+  tareaIdValidator,
+  canModifyTarea, // MIDDLEWARE DE VALIDACIÓN
+  deleteTarea
+);
 
 // Manejo de errores de multer
 router.use((error, req, res, next) => {
