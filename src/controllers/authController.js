@@ -1,7 +1,7 @@
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
 import { validationResult } from 'express-validator';
+import { notificarBienvenida } from '../services/notificacionService.js';
 
 // Generar JWT
 const generateToken = (userId) => {
@@ -56,6 +56,8 @@ export const register = async (req, res) => {
 
     // Generar token
     const token = generateToken(savedUser._id);
+
+    await notificarBienvenida(savedUser);
 
     res.status(201).json({
       message: "Usuario registrado exitosamente",

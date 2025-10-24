@@ -2,6 +2,7 @@ import Entrega from '../models/Entrega.js';
 import Tarea from '../models/Tarea.js';
 import { validationResult } from 'express-validator';
 import { subirArchivoCloudinary, eliminarArchivoCloudinary } from '../utils/cloudinaryUpload.js';
+import { notificarNuevaEntrega, notificarCalificacion } from '../services/notificacionService.js';
 
 // ==================== ENDPOINTS PARA PADRE ====================
 
@@ -56,7 +57,7 @@ export const createEntrega = async (req, res) => {
           'archivos-entregas',
           file.originalname
         );
-        
+
         archivosAdjuntos.push({
           url: archivoSubido.url,
           publicId: archivoSubido.publicId,
@@ -100,9 +101,9 @@ export const getEntregasByPadreAndTarea = async (req, res) => {
     const { tareaId } = req.params;
     const padreId = req.user.userId; // ID del padre autenticado
 
-    const entregas = await Entrega.find({ 
-      tareaId, 
-      padreId 
+    const entregas = await Entrega.find({
+      tareaId,
+      padreId
     })
       .populate('tareaId', 'titulo descripcion fechaEntrega criterios')
       .populate('calificacion.docenteId', 'nombre apellido')
@@ -141,7 +142,7 @@ export const updateEntrega = async (req, res) => {
     delete updateData.padreId;
 
     const entrega = await Entrega.findById(id).populate('tareaId');
-    
+
     if (!entrega) {
       return res.status(404).json({
         message: "Entrega no encontrada"
@@ -151,7 +152,7 @@ export const updateEntrega = async (req, res) => {
     // Procesar nuevos archivos adjuntos si existen
     if (req.files && req.files.length > 0) {
       let archivosAdjuntos = entrega.archivosAdjuntos || [];
-      
+
       for (const file of req.files) {
         const archivoSubido = await subirArchivoCloudinary(
           file.buffer,
@@ -159,7 +160,7 @@ export const updateEntrega = async (req, res) => {
           'archivos-entregas',
           file.originalname
         );
-        
+
         archivosAdjuntos.push({
           url: archivoSubido.url,
           publicId: archivoSubido.publicId,
@@ -168,7 +169,7 @@ export const updateEntrega = async (req, res) => {
           tamano: file.size
         });
       }
-      
+
       updateData.archivosAdjuntos = archivosAdjuntos;
     }
 
@@ -204,7 +205,7 @@ export const enviarEntrega = async (req, res) => {
     const { id } = req.params;
 
     const entrega = await Entrega.findById(id).populate('tareaId');
-    
+
     if (!entrega) {
       return res.status(404).json({
         message: "Entrega no encontrada"
@@ -236,6 +237,8 @@ export const enviarEntrega = async (req, res) => {
       { path: 'padreId', select: 'nombre apellido' }
     ]);
 
+    await notificarNuevaEntrega(entrega);
+
     res.json({
       message: `Entrega ${estado === 'tarde' ? 'enviada con retraso' : 'enviada exitosamente'}`,
       entrega
@@ -263,7 +266,7 @@ export const deleteEntrega = async (req, res) => {
     const { id } = req.params;
 
     const entrega = await Entrega.findById(id);
-    
+
     if (!entrega) {
       return res.status(404).json({
         message: "Entrega no encontrada"
@@ -303,7 +306,7 @@ export const eliminarArchivoEntrega = async (req, res) => {
     const { id, archivoId } = req.params;
 
     const entrega = await Entrega.findById(id);
-    
+
     if (!entrega) {
       return res.status(404).json({
         message: "Entrega no encontrada"
@@ -363,7 +366,7 @@ export const getAllEntregas = async (req, res) => {
 
     // Construir filtro base
     const filter = {};
-    
+
     if (estado) filter.estado = estado;
 
     // APLICAR FILTROS SEGÚN ROL
@@ -440,9 +443,9 @@ export const getEntregasByTarea = async (req, res) => {
       enviadas: await Entrega.countDocuments({ tareaId, estado: 'enviada' }),
       tarde: await Entrega.countDocuments({ tareaId, estado: 'tarde' }),
       borradores: await Entrega.countDocuments({ tareaId, estado: 'borrador' }),
-      calificadas: await Entrega.countDocuments({ 
-        tareaId, 
-        'calificacion.nota': { $exists: true } 
+      calificadas: await Entrega.countDocuments({
+        tareaId,
+        'calificacion.nota': { $exists: true }
       })
     };
 
@@ -526,7 +529,7 @@ export const calificarEntrega = async (req, res) => {
     const { nota, comentario, docenteId } = req.body;
 
     const entrega = await Entrega.findById(id);
-    
+
     if (!entrega) {
       return res.status(404).json({
         message: "Entrega no encontrada"
@@ -552,6 +555,8 @@ export const calificarEntrega = async (req, res) => {
       .populate('tareaId', 'titulo')
       .populate('padreId', 'nombre apellido correo')
       .populate('calificacion.docenteId', 'nombre apellido');
+
+    await notificarCalificacion(entrega);
 
     res.json({
       message: "Entrega calificada exitosamente",

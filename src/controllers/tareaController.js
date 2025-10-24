@@ -1,6 +1,7 @@
 import Tarea from '../models/Tarea.js';
 import { validationResult } from 'express-validator';
 import { subirArchivoCloudinary, eliminarArchivoCloudinary } from '../utils/cloudinaryUpload.js';
+import { notificarNuevaTarea, notificarTareaCerrada } from '../services/notificacionService.js';
 
 // Crear tarea
 export const createTarea = async (req, res) => {
@@ -102,6 +103,8 @@ export const createTarea = async (req, res) => {
       { path: 'moduloId', select: 'titulo' },
       { path: 'participantesSeleccionados', select: 'nombre apellido correo' }
     ]);
+
+     await notificarNuevaTarea(tarea);
 
     res.status(201).json({
       message: "Tarea creada exitosamente",
@@ -379,6 +382,8 @@ export const closeTarea = async (req, res) => {
         message: "Tarea no encontrada"
       });
     }
+
+    await notificarTareaCerrada(tarea);
 
     res.json({
       message: "Tarea cerrada exitosamente",

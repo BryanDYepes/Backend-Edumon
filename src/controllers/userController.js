@@ -1,6 +1,5 @@
 import User from '../models/User.js';
 import { validationResult } from 'express-validator';
-import { eliminarArchivo } from '../config/multerConfig.js';
 
 // Crear usuario
 export const createUser = async (req, res) => {

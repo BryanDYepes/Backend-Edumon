@@ -6,6 +6,7 @@ import csv from 'csv-parser';
 import { Readable } from 'stream';
 import mongoose from 'mongoose';
 import { subirImagenCloudinary, eliminarArchivoCloudinary } from '../utils/cloudinaryUpload.js';
+import { notificarAgregarCurso } from '../services/notificacionService.js';
 
 // FUNCIÓN AUXILIAR: Procesar CSV
 async function procesarUsuariosCSV(file, cursoId) {
@@ -184,7 +185,7 @@ export const createCurso = async (req, res) => {
     // Determinar la URL de la foto
     let urlFoto = fotoPortadaUrl || null;
     let publicIdFoto = null;
-    
+
     // Si se subió un archivo de imagen, subirlo a Cloudinary
     if (req.files?.fotoPortada?.[0]) {
       const resultadoCloudinary = await subirImagenCloudinary(
@@ -379,19 +380,19 @@ export const updateCurso = async (req, res) => {
     if (req.file) {
       // Buscar el curso para obtener el public_id de la foto antigua
       const cursoAntiguo = await Curso.findById(id);
-      
+
       // Eliminar foto antigua de Cloudinary si existe
       if (cursoAntiguo?.fotoPortadaPublicId) {
         await eliminarArchivoCloudinary(cursoAntiguo.fotoPortadaPublicId, 'image');
       }
-      
+
       // Subir nueva foto a Cloudinary
       const resultadoCloudinary = await subirImagenCloudinary(
         req.file.buffer,
         req.file.mimetype,
         'fotos_cursos_portada' // Carpeta específica
       );
-      
+
       updateData.fotoPortadaUrl = resultadoCloudinary.url;
       updateData.fotoPortadaPublicId = resultadoCloudinary.publicId;
     }
@@ -431,30 +432,30 @@ export const archivarCurso = async (req, res) => {
     const usuarioLogueado = req.user;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ 
-        message: "ID de curso no válido" 
+      return res.status(400).json({
+        message: "ID de curso no válido"
       });
     }
 
     const curso = await Curso.findById(id);
-    
+
     if (!curso) {
-      return res.status(404).json({ 
-        message: "Curso no encontrado" 
+      return res.status(404).json({
+        message: "Curso no encontrado"
       });
     }
 
     if (curso.estado === 'archivado') {
-      return res.status(400).json({ 
-        message: "El curso ya está archivado" 
+      return res.status(400).json({
+        message: "El curso ya está archivado"
       });
     }
 
     // Validar permisos
-    if (usuarioLogueado.rol === 'docente' && 
-        curso.docenteId.toString() !== usuarioLogueado.userId) {
-      return res.status(403).json({ 
-        message: "No tienes permisos para archivar este curso" 
+    if (usuarioLogueado.rol === 'docente' &&
+      curso.docenteId.toString() !== usuarioLogueado.userId) {
+      return res.status(403).json({
+        message: "No tienes permisos para archivar este curso"
       });
     }
 
@@ -471,7 +472,7 @@ export const archivarCurso = async (req, res) => {
 
   } catch (error) {
     console.error('Error al archivar curso:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: "Error interno del servidor",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -486,29 +487,29 @@ export const agregarParticipante = async (req, res) => {
     const usuarioLogueado = req.user;
 
     if (!nombre || !apellido || !telefono || !cedula) {
-      return res.status(400).json({ 
-        message: "Todos los campos son requeridos (nombre, apellido, telefono, cedula)" 
+      return res.status(400).json({
+        message: "Todos los campos son requeridos (nombre, apellido, telefono, cedula)"
       });
     }
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ 
-        message: "ID de curso no válido" 
+      return res.status(400).json({
+        message: "ID de curso no válido"
       });
     }
 
     const curso = await Curso.findById(id);
     if (!curso) {
-      return res.status(404).json({ 
-        message: "Curso no encontrado" 
+      return res.status(404).json({
+        message: "Curso no encontrado"
       });
     }
 
     // Validar permisos
-    if (usuarioLogueado.rol === 'docente' && 
-        curso.docenteId.toString() !== usuarioLogueado.userId) {
-      return res.status(403).json({ 
-        message: "No tienes permisos para agregar participantes a este curso" 
+    if (usuarioLogueado.rol === 'docente' &&
+      curso.docenteId.toString() !== usuarioLogueado.userId) {
+      return res.status(403).json({
+        message: "No tienes permisos para agregar participantes a este curso"
       });
     }
 
@@ -524,7 +525,7 @@ export const agregarParticipante = async (req, res) => {
 
     if (usuario) {
       if (curso.esParticipante(usuario._id)) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "El usuario ya está inscrito en este curso",
           usuario: {
             nombre: `${usuario.nombre} ${usuario.apellido}`,
@@ -534,7 +535,8 @@ export const agregarParticipante = async (req, res) => {
       }
 
       curso.agregarParticipante(usuario._id, 'padre');
-      detalles = {nombre: `${usuario.nombre} ${usuario.apellido}`,
+      detalles = {
+        nombre: `${usuario.nombre} ${usuario.apellido}`,
         cedula: cedula.trim(),
         telefono: usuario.telefono,
         accion: "Agregado al curso (usuario existente)"
@@ -553,7 +555,7 @@ export const agregarParticipante = async (req, res) => {
 
       const usuarioCreado = await nuevoUsuario.save();
       curso.agregarParticipante(usuarioCreado._id, 'padre');
-      
+
       detalles = {
         nombre: `${usuarioCreado.nombre} ${usuarioCreado.apellido}`,
         cedula: cedula.trim(),
@@ -565,6 +567,14 @@ export const agregarParticipante = async (req, res) => {
     await curso.save();
     await curso.populate('docenteId', 'nombre apellido correo');
     await curso.populate('participantes.usuarioId', 'nombre apellido correo rol telefono');
+    const usuarioFinalId = usuario ? usuario._id : detalles.accion.includes("creado")
+      ? await User.findOne({ correo: correoTemporal }).then(u => u._id)
+      : null;
+
+    if (usuarioFinalId) {
+      await notificarAgregarCurso(usuarioFinalId, curso);
+    }
+
 
     res.json({
       message: "Participante agregado exitosamente",
@@ -574,14 +584,14 @@ export const agregarParticipante = async (req, res) => {
 
   } catch (error) {
     console.error('Error al agregar participante:', error);
-    
+
     if (error.code === 11000) {
-      return res.status(400).json({ 
-        message: "Ya existe un usuario con esta cédula o correo" 
+      return res.status(400).json({
+        message: "Ya existe un usuario con esta cédula o correo"
       });
     }
 
-    res.status(500).json({ 
+    res.status(500).json({
       message: "Error interno del servidor",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -679,8 +689,8 @@ export const getParticipantesCurso = async (req, res) => {
     const { etiqueta, search, page = 1, limit = 50 } = req.query;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ 
-        message: "ID de curso no válido" 
+      return res.status(400).json({
+        message: "ID de curso no válido"
       });
     }
 
