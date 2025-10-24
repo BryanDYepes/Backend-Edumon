@@ -337,7 +337,7 @@ async function eliminarSuscripcionPush(endpoint) {
 export const notificarNuevaTarea = async (tarea) => {
   try {
     // Obtener participantes del curso
-    const Curso = (await import('../models/curso.model.js')).default;
+    const Curso = (await import('../models/Curso.js')).default;
     const curso = await Curso.findById(tarea.cursoId).populate('participantes');
 
     if (!curso) return;

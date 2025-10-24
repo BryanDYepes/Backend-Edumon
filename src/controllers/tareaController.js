@@ -104,7 +104,7 @@ export const createTarea = async (req, res) => {
       { path: 'participantesSeleccionados', select: 'nombre apellido correo' }
     ]);
 
-     await notificarNuevaTarea(tarea);
+     await notificarNuevaTarea(savedTarea);
 
     res.status(201).json({
       message: "Tarea creada exitosamente",
@@ -383,7 +383,7 @@ export const closeTarea = async (req, res) => {
       });
     }
 
-    await notificarTareaCerrada(tarea);
+    await notificarTareaCerrada(savedTarea);
 
     res.json({
       message: "Tarea cerrada exitosamente",
