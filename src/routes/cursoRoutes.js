@@ -30,9 +30,9 @@ const router = express.Router();
 router.post('/', 
   authMiddleware, 
   requireRole(['administrador', 'docente']),
-  uploadImagenYCSV.fields([           // CAMBIAR A uploadImagenYCSV
+  uploadImagenYCSV.fields([           
     { name: 'fotoPortada', maxCount: 1 },
-    { name: 'archivo', maxCount: 1 }
+    { name: 'archivoCSV', maxCount: 1 }
   ]),
   createCursoValidator, 
   createCurso
@@ -103,7 +103,7 @@ router.post('/:id/usuarios-masivo',
   authMiddleware, 
   requireRole(['administrador', 'docente']), 
   cursoIdValidator,
-  uploadCSVCloudinary.single('archivo'), // Solo CSV aquí
+  uploadCSVCloudinary.single('archivoCSV'), // Solo CSV aquí
   registrarUsuariosMasivo
 );
 

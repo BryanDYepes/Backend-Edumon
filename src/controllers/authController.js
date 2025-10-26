@@ -24,7 +24,7 @@ export const register = async (req, res) => {
       });
     }
 
-    const { nombre, apellido, correo, contraseña, rol, telefono } = req.body;
+    const { nombre, apellido, cedula, correo, contraseña, rol, telefono } = req.body;
 
     // Verificar si ya existe un usuario con ese correo o teléfono
     const existingUser = await User.findOne({ 
@@ -45,6 +45,7 @@ export const register = async (req, res) => {
     const newUser = new User({ 
       nombre, 
       apellido, 
+      cedula,
       correo, 
       contraseña, 
       rol, 
@@ -66,6 +67,7 @@ export const register = async (req, res) => {
         id: savedUser._id,
         nombre: savedUser.nombre,
         apellido: savedUser.apellido,
+        cedula: savedUser.cedula,
         correo: savedUser.correo,
         rol: savedUser.rol,
         telefono: savedUser.telefono,
@@ -135,6 +137,7 @@ export const login = async (req, res) => {
         id: user._id,
         nombre: user.nombre,
         apellido: user.apellido,
+        cedula: user.cedula,
         correo: user.correo,
         rol: user.rol,
         telefono: user.telefono,
@@ -167,6 +170,7 @@ export const getProfile = async (req, res) => {
         id: user._id,
         nombre: user.nombre,
         apellido: user.apellido,
+        cedula: user.cedula, 
         correo: user.correo,
         rol: user.rol,
         telefono: user.telefono,

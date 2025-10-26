@@ -106,9 +106,16 @@ export const crearYEnviarNotificacion = async (datos) => {
       }
     }
 
-    // ========== ENVIAR EMAIL (Solo docentes, prioridad alta/crítica) ==========
+    // ========== ENVIAR EMAIL (Solo docentes, prioridad critica/crítica) ==========
+    console.log(`\n📧 [VERIFICACIÓN EMAIL]`);
+    console.log(`  - Rol usuario: "${usuario.rol}"`);
+    console.log(`  - Es docente: ${usuario.rol === 'docente'}`);
+    console.log(`  - Prioridad: "${prioridad}"`);
+    console.log(`  - Incluye prioridad: ${['alta', 'critica'].includes(prioridad)}`);
+    console.log(`  - Correo: ${usuario.correo}`);
+
     if (
-      usuario.rol === 'docente' && 
+      usuario.rol === 'docente' &&
       ['alta', 'critica'].includes(prioridad)
     ) {
       try {
@@ -191,7 +198,7 @@ export const enviarNotificacionWhatsApp = async (usuario, notificacion) => {
 ${notificacion.mensaje}
 
 ---
-_Notificación del Sistema Educativo_
+_Notificación de Edumon_
     `.trim();
 
     await twilioClient.messages.create({
@@ -217,7 +224,7 @@ export const enviarNotificacionEmail = async (usuario, notificacion) => {
     }
 
     const mailOptions = {
-      from: `"Sistema Educativo" <${process.env.EMAIL_USER}>`,
+      from: `"Edumon" <${process.env.EMAIL_USER}>`,
       to: usuario.correo,
       subject: obtenerTituloPush(notificacion.tipo),
       html: generarHTMLEmail(usuario, notificacion)
@@ -269,7 +276,6 @@ function generarHTMLEmail(usuario, notificacion) {
         .header { background: #4F46E5; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
         .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; }
         .footer { background: #f3f4f6; padding: 15px; text-align: center; font-size: 12px; color: #6b7280; border-radius: 0 0 8px 8px; }
-        .button { display: inline-block; background: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 20px; }
       </style>
     </head>
     <body>
@@ -280,20 +286,17 @@ function generarHTMLEmail(usuario, notificacion) {
         <div class="content">
           <p>Hola <strong>${usuario.nombre}</strong>,</p>
           <p>${notificacion.mensaje}</p>
-          ${notificacion.referenciaId ? `
-            <a href="${process.env.FRONTEND_URL}${obtenerUrlNotificacion(notificacion)}" class="button">
-              Ver Detalles
-            </a>
-          ` : ''}
-        </div><div class="footer">
-          <p>Este es un correo automático del Sistema Educativo. Por favor no responder.</p>
-          <p>&copy; ${new Date().getFullYear()} Sistema Educativo. Todos los derechos reservados.</p>
+        </div>
+        <div class="footer">
+          <p>Este es un correo automático de <strong>Edumon</strong>. Por favor no responder.</p>
+          <p>&copy; ${new Date().getFullYear()} Edumon. Todos los derechos reservados.</p>
         </div>
       </div>
     </body>
     </html>
   `;
 }
+
 
 // ============ FUNCIONES PARA MANEJAR SUSCRIPCIONES PUSH ============
 
@@ -305,9 +308,9 @@ async function obtenerSuscripcionesPush(usuarioId) {
   try {
     // Importar modelo de suscripciones (crearlo si no existe)
     const PushSubscription = (await import('../models/pushSubscription.js')).default;
-    const suscripciones = await PushSubscription.find({ 
-      usuarioId, 
-      activa: true 
+    const suscripciones = await PushSubscription.find({
+      usuarioId,
+      activa: true
     });
     return suscripciones;
   } catch (error) {
@@ -334,113 +337,384 @@ async function eliminarSuscripcionPush(endpoint) {
 /**
  * Notificación cuando se crea una tarea
  */
+/**
+ * Notificación cuando se crea una tarea
+ */
 export const notificarNuevaTarea = async (tarea) => {
   try {
-    // Obtener participantes del curso
-    const Curso = (await import('../models/Curso.js')).default;
-    const curso = await Curso.findById(tarea.cursoId).populate('participantes');
+    console.log(`\n📝 [NUEVA TAREA] Iniciando notificaciones`);
+    console.log(`Tarea: ${tarea.titulo} (${tarea._id})`);
+    console.log(`Curso ID: ${tarea.cursoId?._id || tarea.cursoId}`);
+    console.log(`Asignación tipo: ${tarea.asignacionTipo}`);
 
-    if (!curso) return;
+    // Obtener curso con participantes si no está poblado
+    const Curso = (await import('../models/Curso.js')).default;
+    let curso;
+    
+    if (tarea.cursoId?.participantes) {
+      // Ya está poblado
+      curso = tarea.cursoId;
+      console.log(`✅ Curso ya poblado: ${curso.nombre}`);
+    } else {
+      // Poblar curso
+      curso = await Curso.findById(tarea.cursoId).populate({
+        path: 'participantes.usuarioId',
+        select: 'nombre apellido correo telefono rol'
+      });
+      console.log(`✅ Curso poblado: ${curso.nombre}`);
+    }
+
+    if (!curso) {
+      console.error('❌ Curso no encontrado');
+      return;
+    }
+
+    console.log(`Total participantes en curso: ${curso.participantes.length}`);
 
     // Determinar destinatarios según asignación
     let destinatarios = [];
+
     if (tarea.asignacionTipo === 'todos') {
-      destinatarios = curso.participantes.filter(p => p.rol === 'padre');
+      console.log(`📢 Asignación a TODOS los padres del curso`);
+      
+      // Filtrar solo padres activos
+      destinatarios = curso.participantes
+        .filter(p => {
+          const usuario = p.usuarioId;
+          if (!usuario) {
+            console.log(`⚠️ Participante sin usuario (null)`);
+            return false;
+          }
+          if (p.etiqueta !== 'padre') {
+            console.log(`⚠️ Saltando ${usuario.nombre} (${p.etiqueta})`);
+            return false;
+          }
+          console.log(`✅ Incluir ${usuario.nombre} ${usuario.apellido} (${usuario._id})`);
+          return true;
+        })
+        .map(p => p.usuarioId);
+
     } else if (tarea.asignacionTipo === 'seleccionados') {
+      console.log(`👥 Asignación a participantes SELECCIONADOS`);
+      console.log(`IDs seleccionados:`, tarea.participantesSeleccionados);
+      
+      const User = (await import('../models/User.js')).default;
+      
+      // Siempre obtener desde la BD para tener el campo 'rol'
+      const participantesIds = tarea.participantesSeleccionados.map(p => {
+        // Si ya está poblado, obtener el _id
+        if (p._id) return p._id;
+        // Si es un ObjectId directo
+        return p;
+      });
+
+      console.log(`IDs a buscar en BD:`, participantesIds);
+
       destinatarios = await User.find({
-        _id: { $in: tarea.participantesSeleccionados },
-        rol: 'padre'
+        _id: { $in: participantesIds },
+        rol: 'padre' // Solo traer padres
+      }).select('nombre apellido correo telefono rol');
+
+      console.log(`✅ Participantes encontrados en BD: ${destinatarios.length}`);
+      
+      destinatarios.forEach(u => {
+        console.log(`  - ${u.nombre} ${u.apellido} (${u._id}) - Rol: ${u.rol} - Tel: ${u.telefono || 'N/A'}`);
       });
     }
 
-    // Crear notificaciones para cada destinatario
-    const promesas = destinatarios.map(usuario =>
-      crearYEnviarNotificacion({
-        usuarioId: usuario._id,
-        tipo: 'tarea',
-        mensaje: `Nueva tarea asignada: "${tarea.titulo}". Fecha de entrega: ${new Date(tarea.fechaEntrega).toLocaleDateString()}`,
-        prioridad: 'alta',
-        referenciaId: tarea._id,
-        referenciaModelo: 'Tarea',
-        metadata: {
-          cursoNombre: curso.nombre,
-          fechaEntrega: tarea.fechaEntrega,
-          tipoEntrega: tarea.tipoEntrega
-        }
-      })
-    );
+    console.log(`\n📊 Total destinatarios a notificar: ${destinatarios.length}`);
 
-    await Promise.allSettled(promesas);
-    console.log(`Notificaciones de tarea enviadas a ${destinatarios.length} usuarios`);
+    if (destinatarios.length === 0) {
+      console.log(`⚠️ No hay destinatarios para notificar`);
+      
+      // Debug adicional
+      if (tarea.asignacionTipo === 'seleccionados') {
+        console.log(`\n🔍 DEBUG: Revisando participantes seleccionados...`);
+        const User = (await import('../models/User.js')).default;
+        const participantesIds = tarea.participantesSeleccionados.map(p => p._id || p);
+        
+        const todosLosUsuarios = await User.find({
+          _id: { $in: participantesIds }
+        }).select('nombre apellido rol');
+        
+        console.log(`Total usuarios encontrados (sin filtro de rol): ${todosLosUsuarios.length}`);
+        todosLosUsuarios.forEach(u => {
+          console.log(`  - ${u.nombre} ${u.apellido} - Rol: ${u.rol} ${u.rol === 'padre' ? '✅' : '❌ (no es padre)'}`);
+        });
+      }
+      
+      return;
+    }
+
+    // Formatear fecha de entrega
+    const fechaEntrega = new Date(tarea.fechaEntrega);
+    const fechaFormateada = fechaEntrega.toLocaleDateString('es-CO', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    // Crear notificaciones para cada destinatario
+    const promesas = destinatarios.map(async (usuario, index) => {
+      try {
+        console.log(`\n[${index + 1}/${destinatarios.length}] Notificando a ${usuario.nombre} ${usuario.apellido}`);
+        console.log(`  - ID: ${usuario._id}`);
+        console.log(`  - Rol: ${usuario.rol}`);
+        console.log(`  - Tel: ${usuario.telefono || 'N/A'}`);
+        
+        await crearYEnviarNotificacion({
+          usuarioId: usuario._id,
+          tipo: 'tarea',
+          mensaje: `Nueva tarea asignada: "${tarea.titulo}". Fecha de entrega: ${fechaFormateada}`,
+          prioridad: 'critica',
+          referenciaId: tarea._id,
+          referenciaModelo: 'Tarea',
+          metadata: {
+            cursoNombre: curso.nombre,
+            tareaTitulo: tarea.titulo,
+            fechaEntrega: tarea.fechaEntrega,
+            tipoEntrega: tarea.tipoEntrega,
+            asignacionTipo: tarea.asignacionTipo
+          }
+        });
+
+        console.log(`✅ Notificación enviada exitosamente`);
+        return { success: true, usuario: usuario._id };
+      } catch (error) {
+        console.error(`❌ Error al notificar a ${usuario.nombre}:`, error.message);
+        return { success: false, usuario: usuario._id, error: error.message };
+      }
+    });
+
+    const resultados = await Promise.allSettled(promesas);
+    
+    const exitosos = resultados.filter(r => r.status === 'fulfilled' && r.value.success).length;
+    const fallidos = resultados.filter(r => r.status === 'rejected' || !r.value.success).length;
+
+    console.log(`\n📊 Resumen de notificaciones de tarea:`);
+    console.log(`  ✅ Exitosas: ${exitosos}`);
+    console.log(`  ❌ Fallidas: ${fallidos}`);
+    console.log(`  📝 Total: ${destinatarios.length}`);
+
   } catch (error) {
-    console.error('Error en notificarNuevaTarea:', error);
+    console.error('❌ Error en notificarNuevaTarea:', error);
+    console.error('Stack:', error.stack);
   }
 };
 
 /**
- * Notificación cuando se envía una entrega
+ * Notificación cuando se cierra una tarea
  */
+export const notificarTareaCerrada = async (tarea) => {
+  try {
+    console.log(`\n🔒 [TAREA CERRADA] Iniciando notificaciones`);
+    console.log(`Tarea: ${tarea.titulo} (${tarea._id})`);
+
+    // Obtener curso con participantes
+    const Curso = (await import('../models/Curso.js')).default;
+    let curso;
+    
+    if (tarea.cursoId?.participantes) {
+      curso = tarea.cursoId;
+    } else {
+      curso = await Curso.findById(tarea.cursoId).populate({
+        path: 'participantes.usuarioId',
+        select: 'nombre apellido correo telefono rol'
+      });
+    }
+
+    if (!curso) {
+      console.error('❌ Curso no encontrado');
+      return;
+    }
+
+    let destinatarios = [];
+
+    if (tarea.asignacionTipo === 'todos') {
+      destinatarios = curso.participantes
+        .filter(p => p.usuarioId && p.etiqueta === 'padre')
+        .map(p => p.usuarioId);
+    } else if (tarea.asignacionTipo === 'seleccionados') {
+      const User = (await import('../models/User.js')).default;
+      
+      if (tarea.participantesSeleccionados?.[0]?.nombre) {
+        destinatarios = tarea.participantesSeleccionados.filter(u => u.rol === 'padre');
+      } else {
+        destinatarios = await User.find({
+          _id: { $in: tarea.participantesSeleccionados },
+          rol: 'padre'
+        });
+      }
+    }
+
+    console.log(`📊 Total destinatarios: ${destinatarios.length}`);
+
+    const promesas = destinatarios.map(usuario =>
+      crearYEnviarNotificacion({
+        usuarioId: usuario._id,
+        tipo: 'tarea',
+        mensaje: `La tarea "${tarea.titulo}" ha sido cerrada. Ya no se aceptan más entregas.`,
+        prioridad: 'critica',
+        referenciaId: tarea._id,
+        referenciaModelo: 'Tarea',
+        metadata: {
+          cursoNombre: curso.nombre,
+          tareaTitulo: tarea.titulo,
+          fechaCierre: new Date()
+        }
+      })
+    );
+
+    const resultados = await Promise.allSettled(promesas);
+    const exitosos = resultados.filter(r => r.status === 'fulfilled').length;
+
+    console.log(`✅ Notificaciones de cierre enviadas: ${exitosos}/${destinatarios.length}`);
+  } catch (error) {
+    console.error('❌ Error en notificarTareaCerrada:', error);
+  }
+};
+
 export const notificarNuevaEntrega = async (entrega) => {
   try {
-    const Tarea = (await import('../models/tarea.model.js')).default;
-    const tarea = await Tarea.findById(entrega.tareaId);
+    console.log(`\n📤 [NUEVA ENTREGA] Iniciando notificación`);
+    
+    // Verificar que entrega esté completamente poblada
+    if (!entrega.tareaId) {
+      console.error('❌ entrega.tareaId no está poblada');
+      return;
+    }
+    
+    if (!entrega.tareaId.docenteId) {
+      console.error('❌ entrega.tareaId.docenteId no está poblada');
+      return;
+    }
+    
+    if (!entrega.padreId) {
+      console.error('❌ entrega.padreId no está poblada');
+      return;
+    }
 
-    if (!tarea) return;
+    const tarea = entrega.tareaId;
+    const docente = tarea.docenteId;
+    const padre = entrega.padreId;
 
-    const padre = await User.findById(entrega.padreId);
+    console.log(`✅ Datos verificados:`);
+    console.log(`  Tarea: ${tarea.titulo}`);
+    console.log(`  Docente: ${docente.nombre} ${docente.apellido} (${docente.correo})`);
+    console.log(`  Padre: ${padre.nombre} ${padre.apellido}`);
 
-    // Notificar al docente de la tarea
+    // 🔍 LOGS DE DEBUG CRÍTICOS - AGREGAR ESTOS
+    console.log(`\n🔍 [DEBUG] Verificando IDs antes de notificar:`);
+    console.log(`  🎯 Usuario a notificar (docente._id): ${docente._id}`);
+    console.log(`  👤 Rol del docente: ${docente.rol}`);
+    console.log(`  📧 Email del docente: ${docente.correo}`);
+    console.log(`  ⚠️ NO debe ser padre._id: ${padre._id}`);
+
+    // ⚠️ IMPORTANTE: Usar prioridad 'critica' para asegurar envío de email
     await crearYEnviarNotificacion({
-      usuarioId: tarea.docenteId,
+      usuarioId: docente._id,
       tipo: 'entrega',
-      mensaje: `${padre.nombre} ${padre.apellido} ha enviado la entrega de "${tarea.titulo}"`,
+      mensaje: `${padre.nombre} ${padre.apellido} ha enviado la entrega de "${tarea.titulo}". Ya puedes calificarla.`,
       prioridad: 'critica',
       referenciaId: entrega._id,
       referenciaModelo: 'Entrega',
       metadata: {
         tareaTitulo: tarea.titulo,
         padreNombre: `${padre.nombre} ${padre.apellido}`,
-        estado: entrega.estado
+        estado: entrega.estado,
+        fechaEntrega: entrega.fechaEntrega
       }
     });
 
-    console.log('Notificación de entrega enviada al docente');
+    console.log('✅ Notificación de entrega enviada al docente (con email)');
   } catch (error) {
-    console.error('Error en notificarNuevaEntrega:', error);
+    console.error('❌ Error en notificarNuevaEntrega:', error);
+    console.error('Stack:', error.stack);
   }
 };
 
 /**
  * Notificación cuando se califica una entrega
+ * 📱 Envía SOLO WHATSAPP al padre (sin email ni push)
  */
 export const notificarCalificacion = async (entrega) => {
   try {
-    const Tarea = (await import('../models/tarea.model.js')).default;
+    console.log(`\n⭐ [CALIFICACIÓN] Iniciando notificación`);
+    
+    const Tarea = (await import('../models/Tarea.js')).default;
+    const User = (await import('../models/User.js')).default;
+    
     const tarea = await Tarea.findById(entrega.tareaId);
+    if (!tarea) {
+      console.error('❌ Tarea no encontrada');
+      return;
+    }
 
-    if (!tarea) return;
+    const padre = await User.findById(entrega.padreId);
+    if (!padre) {
+      console.error('❌ Padre no encontrado');
+      return;
+    }
 
     const docente = await User.findById(entrega.calificacion.docenteId);
+    if (!docente) {
+      console.error('❌ Docente no encontrado');
+      return;
+    }
 
-    // Notificar al padre
-    await crearYEnviarNotificacion({
-      usuarioId: entrega.padreId,
+    console.log(`Tarea: ${tarea.titulo}`);
+    console.log(`Padre: ${padre.nombre} ${padre.apellido} (${padre.telefono || 'sin teléfono'})`);
+    console.log(`Nota: ${entrega.calificacion.nota}/100`);
+
+    // 📱 ENVÍO PERSONALIZADO: Solo WhatsApp al padre
+    const notificacion = new Notificacion({
+      usuarioId: padre._id,
       tipo: 'calificacion',
-      mensaje: `Tu entrega de "${tarea.titulo}" ha sido calificada. Nota: ${entrega.calificacion.nota}/100`,
-      prioridad: 'alta',
+      mensaje: `Tu entrega de "${tarea.titulo}" ha sido calificada por ${docente.nombre} ${docente.apellido}. Nota: ${entrega.calificacion.nota}/100`,
+      prioridad: 'critica',
       referenciaId: entrega._id,
       referenciaModelo: 'Entrega',
       metadata: {
         tareaTitulo: tarea.titulo,
         nota: entrega.calificacion.nota,
         comentario: entrega.calificacion.comentario,
-        docenteNombre: `${docente.nombre} ${docente.apellido}`
+        docenteNombre: `${docente.nombre} ${docente.apellido}`,
+        fechaCalificacion: entrega.calificacion.fechaCalificacion
       }
     });
 
-    console.log('Notificación de calificación enviada al padre');
+    await notificacion.save();
+
+    // 1️⃣ WebSocket (siempre)
+    try {
+      await emitirNotificacion(notificacion);
+      notificacion.canalEnviado.websocket = true;
+      console.log('✅ WebSocket enviado');
+    } catch (error) {
+      console.error('❌ Error al enviar WebSocket:', error);
+    }
+
+    // 2️⃣ WhatsApp (solo si tiene teléfono)
+    if (padre.telefono) {
+      try {
+        await enviarNotificacionWhatsApp(padre, notificacion);
+        notificacion.canalEnviado.whatsapp = true;
+        console.log(`✅ WhatsApp enviado a ${padre.telefono}`);
+      } catch (error) {
+        console.error('❌ Error al enviar WhatsApp:', error);
+      }
+    } else {
+      console.warn(`⚠️ Padre sin teléfono, no se envió WhatsApp`);
+    }
+
+    // 🚫 NO enviamos Push ni Email al padre (solo WhatsApp)
+
+    await notificacion.save();
+    console.log('✅ Notificación de calificación enviada (WhatsApp únicamente)');
   } catch (error) {
-    console.error('Error en notificarCalificacion:', error);
+    console.error('❌ Error en notificarCalificacion:', error);
   }
 };
 
@@ -451,25 +725,25 @@ export const notificarTareaProximaVencer = async (tarea) => {
   try {
     const Curso = (await import('../models/curso.model.js')).default;
     const Entrega = (await import('../models/entrega.model.js')).default;
-    
+
     const curso = await Curso.findById(tarea.cursoId).populate('participantes');
     if (!curso) return;
 
     // Obtener padres que AÚN NO han entregado
-    const entregasRealizadas = await Entrega.find({ 
+    const entregasRealizadas = await Entrega.find({
       tareaId: tarea._id,
       estado: { $in: ['enviada', 'tarde'] }
     }).distinct('padreId');
 
     let destinatarios = [];
     if (tarea.asignacionTipo === 'todos') {
-      destinatarios = curso.participantes.filter(p => 
-        p.rol === 'padre' && 
+      destinatarios = curso.participantes.filter(p =>
+        p.rol === 'padre' &&
         !entregasRealizadas.some(id => id.equals(p._id))
       );
     } else if (tarea.asignacionTipo === 'seleccionados') {
       destinatarios = await User.find({
-        _id: { 
+        _id: {
           $in: tarea.participantesSeleccionados.filter(id =>
             !entregasRealizadas.some(entregaId => entregaId.equals(id))
           )
@@ -502,48 +776,6 @@ export const notificarTareaProximaVencer = async (tarea) => {
 };
 
 /**
- * Notificación cuando se cierra una tarea
- */
-export const notificarTareaCerrada = async (tarea) => {
-  try {
-    const Curso = (await import('../models/curso.model.js')).default;
-    const curso = await Curso.findById(tarea.cursoId).populate('participantes');
-
-    if (!curso) return;
-
-    let destinatarios = [];
-    if (tarea.asignacionTipo === 'todos') {
-      destinatarios = curso.participantes.filter(p => p.rol === 'padre');
-    } else if (tarea.asignacionTipo === 'seleccionados') {
-      destinatarios = await User.find({
-        _id: { $in: tarea.participantesSeleccionados },
-        rol: 'padre'
-      });
-    }
-
-    const promesas = destinatarios.map(usuario =>
-      crearYEnviarNotificacion({
-        usuarioId: usuario._id,
-        tipo: 'tarea',
-        mensaje: `La tarea "${tarea.titulo}" ha sido cerrada. Ya no se aceptan más entregas`,
-        prioridad: 'critica',
-        referenciaId: tarea._id,
-        referenciaModelo: 'Tarea',
-        metadata: {
-          cursoNombre: curso.nombre,
-          fechaCierre: new Date()
-        }
-      })
-    );
-
-    await Promise.allSettled(promesas);
-    console.log(`Notificaciones de cierre enviadas a ${destinatarios.length} usuarios`);
-  } catch (error) {
-    console.error('Error en notificarTareaCerrada:', error);
-  }
-};
-
-/**
  * Notificación de bienvenida a nuevo usuario
  */
 export const notificarBienvenida = async (usuario) => {
@@ -572,22 +804,64 @@ export const notificarBienvenida = async (usuario) => {
  */
 export const notificarAgregarCurso = async (usuarioId, curso) => {
   try {
-    await crearYEnviarNotificacion({
+    const usuario = await User.findById(usuarioId);
+    
+    if (!usuario) {
+      console.error('Usuario no encontrado para notificar');
+      return;
+    }
+
+    // Crear notificación
+    const notificacion = new Notificacion({
       usuarioId,
       tipo: 'sistema',
       mensaje: `Has sido agregado al curso "${curso.nombre}"`,
-      prioridad: 'critica',
+      prioridad: 'critica', // 👈 Mantener crítica
       referenciaId: curso._id,
       referenciaModelo: 'Curso',
       metadata: {
         cursoNombre: curso.nombre,
-        cursoCodigo: curso.codigoCurso
+        cursoCodigo: curso.codigoCurso,
+        docenteNombre: curso.docenteId ? `${curso.docenteId.nombre} ${curso.docenteId.apellido}` : 'N/A'
       }
     });
 
+    await notificacion.save();
+
+    // WebSocket
+    try {
+      await emitirNotificacion(notificacion);
+      notificacion.canalEnviado.websocket = true;
+    } catch (error) {
+      console.error('Error al enviar por WebSocket:', error);
+    }
+
+    // Push
+    try {
+      await enviarNotificacionPush(usuario, notificacion);
+      notificacion.canalEnviado.push = true;
+    } catch (error) {
+      console.error('Error al enviar Push:', error);
+    }
+
+    // 👇 WHATSAPP - Verificar que el usuario tenga teléfono
+    if (usuario.telefono) {
+      try {
+        await enviarNotificacionWhatsApp(usuario, notificacion);
+        notificacion.canalEnviado.whatsapp = true;
+        console.log(`✅ WhatsApp enviado a ${usuario.nombre} ${usuario.apellido} (${usuario.telefono})`);
+      } catch (error) {
+        console.error(`❌ Error al enviar WhatsApp a ${usuario.telefono}:`, error);
+      }
+    } else {
+      console.warn(`⚠️ Usuario ${usuario.nombre} ${usuario.apellido} sin teléfono registrado`);
+    }
+
+    await notificacion.save();
     console.log('Notificación de nuevo curso enviada');
   } catch (error) {
     console.error('Error en notificarAgregarCurso:', error);
+    throw error;
   }
 };
 

@@ -122,12 +122,17 @@ export const createTarea = async (req, res) => {
 // Listar tareas con paginación, filtros y permisos
 export const getTareas = async (req, res) => {
   try {
+    console.log('🚀 GET /tareas ejecutado');
+    console.log('👤 Usuario ID:', req.user.userId);
+    console.log('🎭 Rol:', req.user.rol);
+    console.log('📋 Query params:', req.query);
+    
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
     const { cursoId, moduloId, docenteId, estado, asignacionTipo } = req.query;
     
-    const userId = req.user.id;
+    const userId = req.user.userId;
     const userRole = req.user.rol;
 
     const filter = {};
@@ -141,16 +146,12 @@ export const getTareas = async (req, res) => {
 
     // FILTRADO SEGÚN ROL Y PERMISOS
     if (userRole === 'docente') {
-      // Opción 1: Docentes ven SOLO sus tareas
+      // Docentes ven SOLO sus tareas
       filter.docenteId = userId;
-      
-      // Opción 2: Docentes ven todas las tareas (comentar línea anterior y descomentar esta)
-      // No agregar filtro adicional
+      console.log('🎓 Filtro docente aplicado');
     } 
-    else if (userRole === 'estudiante' || userRole === 'padre') {
-      // Estudiantes/Padres solo ven:
-      // 1. Tareas asignadas a "todos" en cursos donde participan
-      // 2. Tareas donde están específicamente seleccionados
+    else if (userRole === 'estudiante' || userRole === 'padre') { // ✅ AGREGADO ESTUDIANTE
+      console.log('👨‍🎓 Aplicando filtro estudiante/padre');
       
       // Obtener cursos donde el usuario participa
       const Curso = (await import('../models/Curso.js')).default;
@@ -159,21 +160,36 @@ export const getTareas = async (req, res) => {
       }).select('_id');
       
       const cursoIds = cursosDelUsuario.map(c => c._id);
+      
+      console.log('📚 Cursos del usuario:', cursoIds);
 
-      filter.$or = [
-        // Tareas para "todos" en mis cursos
-        {
-          asignacionTipo: 'todos',
-          cursoId: { $in: cursoIds }
-        },
-        // Tareas donde estoy seleccionado específicamente
-        {
-          asignacionTipo: 'seleccionados',
-          participantesSeleccionados: userId
-        }
-      ];
+      if (cursoIds.length === 0) {
+        // Si no está en ningún curso, solo ver tareas asignadas directamente
+        filter.asignacionTipo = 'seleccionados';
+        filter.participantesSeleccionados = userId;
+      } else {
+        filter.$or = [
+          // Tareas para "todos" en mis cursos
+          {
+            asignacionTipo: 'todos',
+            cursoId: { $in: cursoIds }
+          },
+          // Tareas donde estoy seleccionado específicamente
+          {
+            asignacionTipo: 'seleccionados',
+            participantesSeleccionados: userId
+          }
+        ];
+      }
+    } else {
+      console.log('👑 Usuario admin - sin filtros');
     }
-    // Si es admin, no agregar filtros (ve todo)
+
+    console.log('🔍 Filtro final aplicado:', JSON.stringify(filter, null, 2));
+
+    // Contar todas las tareas sin filtro (para debug)
+    const totalSinFiltro = await Tarea.countDocuments({});
+    console.log('📊 Total tareas en DB (sin filtro):', totalSinFiltro);
 
     const tareas = await Tarea.find(filter)
       .populate('docenteId', 'nombre apellido')
@@ -192,6 +208,9 @@ export const getTareas = async (req, res) => {
       .sort({ fechaEntrega: -1 });
 
     const total = await Tarea.countDocuments(filter);
+    
+    console.log('✅ Tareas encontradas con filtro:', tareas.length);
+    console.log('📊 Total con filtro:', total);
 
     res.json({
       tareas,
@@ -204,7 +223,7 @@ export const getTareas = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error al obtener tareas:', error);
+    console.error('❌ Error al obtener tareas:', error);
     res.status(500).json({
       message: "Error interno del servidor",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -223,7 +242,7 @@ export const getTareaById = async (req, res) => {
       });
     }
 
-    const tarea = await Tarea.findById(req.params.id)
+    const tarea = await Tarea.findById(req.params.id)  // ✅ CORREGIDO
       .populate('docenteId', 'nombre apellido correo')
       .populate({
         path: 'cursoId',
@@ -383,7 +402,7 @@ export const closeTarea = async (req, res) => {
       });
     }
 
-    await notificarTareaCerrada(savedTarea);
+    await notificarTareaCerrada(updatedTarea); // ✅ CORREGIDO
 
     res.json({
       message: "Tarea cerrada exitosamente",

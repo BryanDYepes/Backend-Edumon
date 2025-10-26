@@ -4,7 +4,6 @@ import { validationResult } from 'express-validator';
 // Crear usuario
 export const createUser = async (req, res) => {
   try {
-    // Verificar errores de validación
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -13,9 +12,17 @@ export const createUser = async (req, res) => {
       });
     }
 
-    const { nombre, apellido, correo, contraseña, rol, telefono } = req.body;
+    const { nombre, apellido, cedula, correo, contraseña, rol, telefono } = req.body;
 
-    // Verificar si el usuario ya existe
+    // Verificar si ya existe un usuario con esa cédula
+    const existingCedula = await User.findOne({ cedula });
+    if (existingCedula) {
+      return res.status(409).json({
+        message: "Ya existe un usuario con esta cédula"
+      });
+    }
+
+    // Verificar si el usuario ya existe por correo
     const existingUser = await User.findOne({ correo });
     if (existingUser) {
       return res.status(409).json({
@@ -26,6 +33,7 @@ export const createUser = async (req, res) => {
     const newUser = new User({
       nombre,
       apellido,
+      cedula,
       correo,
       contraseña,
       rol,

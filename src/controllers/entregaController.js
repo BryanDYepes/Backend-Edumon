@@ -232,16 +232,41 @@ export const enviarEntrega = async (req, res) => {
     entrega.fechaEntrega = new Date();
     await entrega.save();
 
-    await entrega.populate([
-      { path: 'tareaId', select: 'titulo fechaEntrega' },
-      { path: 'padreId', select: 'nombre apellido' }
-    ]);
+    // 🔥 CAMBIO CRÍTICO: Popular COMPLETAMENTE la entrega ANTES de notificar
+    const entregaCompleta = await Entrega.findById(id)
+      .populate({
+        path: 'tareaId',
+        select: 'titulo descripcion fechaEntrega docenteId',
+        populate: {
+          path: 'docenteId',
+          select: 'nombre apellido correo rol telefono'
+        }
+      })
+      .populate({
+        path: 'padreId',
+        select: 'nombre apellido correo telefono'
+      });
 
-    await notificarNuevaEntrega(entrega);
+    // Verificar que la tarea tenga docente asignado
+    if (!entregaCompleta.tareaId.docenteId) {
+      console.error('❌ La tarea no tiene docente asignado');
+      return res.status(400).json({
+        message: "Error: La tarea no tiene docente asignado"
+      });
+    }
+
+    console.log('\n📤 [ENVIAR ENTREGA] Datos completos:');
+    console.log('Tarea:', entregaCompleta.tareaId.titulo);
+    console.log('Docente:', entregaCompleta.tareaId.docenteId.nombre, entregaCompleta.tareaId.docenteId.apellido);
+    console.log('Docente Email:', entregaCompleta.tareaId.docenteId.correo);
+    console.log('Padre:', entregaCompleta.padreId.nombre, entregaCompleta.padreId.apellido);
+
+    // Ahora sí enviar la notificación con todos los datos poblados
+    await notificarNuevaEntrega(entregaCompleta);
 
     res.json({
       message: `Entrega ${estado === 'tarde' ? 'enviada con retraso' : 'enviada exitosamente'}`,
-      entrega
+      entrega: entregaCompleta
     });
   } catch (error) {
     console.error('Error al enviar entrega:', error);
@@ -364,10 +389,15 @@ export const getAllEntregas = async (req, res) => {
     const userId = req.user.userId;
     const userRole = req.user.rol;
 
-    // Construir filtro base
-    const filter = {};
+    // Construir filtro base - SOLO ESTADOS ENVIADA Y TARDE
+    const filter = {
+      estado: { $in: ['enviada', 'tarde'] }
+    };
 
-    if (estado) filter.estado = estado;
+    // Si se especifica un estado en la query, verificar que sea válido
+    if (estado && (estado === 'enviada' || estado === 'tarde')) {
+      filter.estado = estado;
+    }
 
     // APLICAR FILTROS SEGÚN ROL
     if (userRole === 'docente') {
@@ -425,8 +455,16 @@ export const getEntregasByTarea = async (req, res) => {
       });
     }
 
-    const filter = { tareaId };
-    if (estado) filter.estado = estado;
+    // Filtro base - SOLO ESTADOS ENVIADA Y TARDE
+    const filter = { 
+      tareaId,
+      estado: { $in: ['enviada', 'tarde'] }
+    };
+    
+    // Si se especifica un estado en la query, verificar que sea válido
+    if (estado && (estado === 'enviada' || estado === 'tarde')) {
+      filter.estado = estado;
+    }
 
     const entregas = await Entrega.find(filter)
       .populate('padreId', 'nombre apellido correo telefono')
@@ -437,14 +475,14 @@ export const getEntregasByTarea = async (req, res) => {
 
     const total = await Entrega.countDocuments(filter);
 
-    // Estadísticas de las entregas
+    // Estadísticas de las entregas - SOLO ENVIADAS Y TARDE
     const stats = {
       total,
       enviadas: await Entrega.countDocuments({ tareaId, estado: 'enviada' }),
       tarde: await Entrega.countDocuments({ tareaId, estado: 'tarde' }),
-      borradores: await Entrega.countDocuments({ tareaId, estado: 'borrador' }),
       calificadas: await Entrega.countDocuments({
         tareaId,
+        estado: { $in: ['enviada', 'tarde'] },
         'calificacion.nota': { $exists: true }
       })
     };
@@ -483,8 +521,16 @@ export const getEntregasByPadre = async (req, res) => {
     const skip = (page - 1) * limit;
     const { estado } = req.query;
 
-    const filter = { padreId };
-    if (estado) filter.estado = estado;
+    // Filtro base - SOLO ESTADOS ENVIADA Y TARDE
+    const filter = { 
+      padreId,
+      estado: { $in: ['enviada', 'tarde'] }
+    };
+    
+    // Si se especifica un estado en la query, verificar que sea válido
+    if (estado && (estado === 'enviada' || estado === 'tarde')) {
+      filter.estado = estado;
+    }
 
     const entregas = await Entrega.find(filter)
       .populate('tareaId', 'titulo descripcion fechaEntrega')
