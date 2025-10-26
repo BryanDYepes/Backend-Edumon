@@ -6,8 +6,11 @@ import {
   getProfile,
   updateUser, 
   deleteUser,
+  getFotosPredeterminadas,
+  updateFotoPerfil
 } from '../controllers/userController.js';
 import { authMiddleware } from "../middlewares/authMiddleware.js";
+import { uploadImagenCloudinary } from '../middlewares/cloudinaryMiddleware.js';
 import { 
   createUserValidator,
   updateUserValidator,
@@ -16,10 +19,18 @@ import {
 
 const router = express.Router();
 
-// Rutas de usuarios
 router.post('/', authMiddleware, createUserValidator, createUser);
 router.get('/', authMiddleware, getUsers);
+
 router.get('/me/profile', authMiddleware, getProfile);
+router.put('/me/foto-perfil', 
+  authMiddleware, 
+  uploadImagenCloudinary.single('foto'), 
+  updateFotoPerfil
+);
+
+router.get('/fotos-predeterminadas', authMiddleware, getFotosPredeterminadas);
+
 router.get('/:id', authMiddleware, userIdValidator, getUserById);
 router.put('/:id', authMiddleware, updateUserValidator, updateUser);
 router.delete('/:id', authMiddleware, userIdValidator, deleteUser);

@@ -1,5 +1,7 @@
 import User from '../models/User.js';
 import { validationResult } from 'express-validator';
+import cloudinary from '../config/cloudinary.js';
+import { subirImagenCloudinary, eliminarArchivoCloudinary } from '../utils/cloudinaryUpload.js';
 
 // Crear usuario
 export const createUser = async (req, res) => {
@@ -218,6 +220,88 @@ export const deleteUser = async (req, res) => {
     console.error('Error al suspender usuario:', error);
     res.status(500).json({
       message: "Error interno del servidor"
+    });
+  }
+};
+
+// Obtener fotos de perfil predeterminadas
+export const getFotosPredeterminadas = async (req, res) => {
+  try {
+    const result = await cloudinary.api.resources({
+      type: 'upload',
+      prefix: 'fotos-perfil-predeterminadas/',
+      max_results: 50
+    });
+
+    const fotos = result.resources.map(foto => ({
+      url: foto.secure_url,
+      publicId: foto.public_id,
+      nombre: foto.public_id.split('/').pop()
+    }));
+
+    res.json({
+      message: "Fotos predeterminadas obtenidas exitosamente",
+      fotos
+    });
+  } catch (error) {
+    console.error('Error al obtener fotos predeterminadas:', error);
+    res.status(500).json({
+      message: "Error al obtener fotos predeterminadas"
+    });
+  }
+};
+
+// Actualizar foto de perfil (predeterminada o nueva)
+export const updateFotoPerfil = async (req, res) => {
+  try {
+    const { userId } = req.user;
+    const { fotoPredeterminadaUrl } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "Usuario no encontrado" });
+    }
+
+    let nuevaFotoUrl = null;
+
+    // Caso 1: Usuario seleccionó una foto predeterminada
+    if (fotoPredeterminadaUrl) {
+      nuevaFotoUrl = fotoPredeterminadaUrl;
+    } 
+    // Caso 2: Usuario subió una foto nueva
+    else if (req.file) {
+      // Eliminar foto anterior si no es predeterminada
+      if (user.fotoPerfilUrl && !user.fotoPerfilUrl.includes('fotos-perfil-predeterminadas')) {
+        const publicIdAnterior = user.fotoPerfilUrl.split('/').slice(-2).join('/').split('.')[0];
+        await eliminarArchivoCloudinary(publicIdAnterior, 'image');
+      }
+
+      // Subir nueva foto
+      const resultado = await subirImagenCloudinary(
+        req.file.buffer, 
+        req.file.mimetype, 
+        'fotos-perfil-usuarios'
+      );
+      nuevaFotoUrl = resultado.url;
+    } else {
+      return res.status(400).json({
+        message: "Debes seleccionar una foto predeterminada o subir una nueva"
+      });
+    }
+
+    // Actualizar usuario
+    user.fotoPerfilUrl = nuevaFotoUrl;
+    await user.save();
+
+    res.json({
+      message: "Foto de perfil actualizada exitosamente",
+      fotoPerfilUrl: nuevaFotoUrl
+    });
+  } catch (error) {
+    console.error('Error al actualizar foto de perfil:', error);
+    res.status(500).json({
+      message: "Error al actualizar foto de perfil",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
