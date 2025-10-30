@@ -77,8 +77,8 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-  console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-  console.log(`📡 WebSocket habilitado`);
+  console.log(`Servidor corriendo en puerto ${PORT}`);
+  console.log(`WebSocket habilitado`);
 });
 
 export default app;

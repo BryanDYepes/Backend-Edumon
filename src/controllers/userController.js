@@ -32,6 +32,16 @@ export const createUser = async (req, res) => {
       });
     }
 
+    // Verificar si ya existe un usuario con ese teléfono
+    if (telefono) {
+      const existingTelefono = await User.findOne({ telefono });
+      if (existingTelefono) {
+        return res.status(409).json({
+          message: "Ya existe un usuario con este teléfono"
+        });
+      }
+    }
+
     const newUser = new User({
       nombre,
       apellido,
@@ -39,7 +49,8 @@ export const createUser = async (req, res) => {
       correo,
       contraseña,
       rol,
-      telefono
+      telefono,
+      fotoPerfilUrl: 'https://res.cloudinary.com/djvilfslm/image/upload/v1761514239/fotos-perfil-predeterminadas/avatar1.webp' // ✅ NUEVO
     });
 
     const savedUser = await newUser.save();
@@ -267,7 +278,7 @@ export const updateFotoPerfil = async (req, res) => {
     // Caso 1: Usuario seleccionó una foto predeterminada
     if (fotoPredeterminadaUrl) {
       nuevaFotoUrl = fotoPredeterminadaUrl;
-    } 
+    }
     // Caso 2: Usuario subió una foto nueva
     else if (req.file) {
       // Eliminar foto anterior si no es predeterminada
@@ -278,8 +289,8 @@ export const updateFotoPerfil = async (req, res) => {
 
       // Subir nueva foto
       const resultado = await subirImagenCloudinary(
-        req.file.buffer, 
-        req.file.mimetype, 
+        req.file.buffer,
+        req.file.mimetype,
         'fotos-perfil-usuarios'
       );
       nuevaFotoUrl = resultado.url;

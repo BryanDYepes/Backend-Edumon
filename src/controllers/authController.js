@@ -6,8 +6,8 @@ import { notificarBienvenida } from '../services/notificacionService.js';
 // Generar JWT
 const generateToken = (userId) => {
   return jwt.sign(
-    { userId }, 
-    process.env.JWT_SECRET, 
+    { userId },
+    process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
 };
@@ -18,16 +18,16 @@ export const register = async (req, res) => {
     // Verificar errores de validación
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Errores de validación",
-        errors: errors.array() 
+        errors: errors.array()
       });
     }
 
     const { nombre, apellido, cedula, correo, contraseña, rol, telefono } = req.body;
 
     // Verificar si ya existe un usuario con ese correo o teléfono
-    const existingUser = await User.findOne({ 
+    const existingUser = await User.findOne({
       $or: [
         { correo },
         { telefono }
@@ -36,23 +36,24 @@ export const register = async (req, res) => {
 
     if (existingUser) {
       const field = existingUser.correo === correo ? 'correo' : 'teléfono';
-      return res.status(409).json({ 
-        message: `Ya existe un usuario con este ${field}` 
+      return res.status(409).json({
+        message: `Ya existe un usuario con este ${field}`
       });
     }
 
     // Crear nuevo usuario
-    const newUser = new User({ 
-      nombre, 
-      apellido, 
+    const newUser = new User({
+      nombre,
+      apellido,
       cedula,
-      correo, 
-      contraseña, 
-      rol, 
+      correo,
+      contraseña,
+      rol,
       telefono,
-      fechaRegistro: new Date()
+      fechaRegistro: new Date(),
+      fotoPerfilUrl: 'https://res.cloudinary.com/djvilfslm/image/upload/v1761514239/fotos-perfil-predeterminadas/avatar1.webp' // ✅ NUEVO
     });
-    
+
     const savedUser = await newUser.save();
 
     // Generar token
@@ -77,7 +78,7 @@ export const register = async (req, res) => {
 
   } catch (error) {
     console.error('Error en registro:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: "Error interno del servidor",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -90,9 +91,9 @@ export const login = async (req, res) => {
     // Verificar errores de validación
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Errores de validación",
-        errors: errors.array() 
+        errors: errors.array()
       });
     }
 
@@ -100,26 +101,26 @@ export const login = async (req, res) => {
 
     // Buscar usuario por teléfono
     const user = await User.findOne({ telefono });
-    
+
     if (!user) {
-      return res.status(401).json({ 
-        message: "Credenciales inválidas" 
+      return res.status(401).json({
+        message: "Credenciales inválidas"
       });
     }
 
     // Verificar si el usuario está activo
     if (user.estado !== 'activo') {
-      return res.status(401).json({ 
-        message: "Usuario suspendido. Contacte al administrador." 
+      return res.status(401).json({
+        message: "Usuario suspendido. Contacte al administrador."
       });
     }
 
     // Verificar contraseña
     const isPasswordValid = await user.comparePassword(contraseña);
-    
+
     if (!isPasswordValid) {
-      return res.status(401).json({ 
-        message: "Credenciales inválidas" 
+      return res.status(401).json({
+        message: "Credenciales inválidas"
       });
     }
 
@@ -148,8 +149,8 @@ export const login = async (req, res) => {
 
   } catch (error) {
     console.error('Error en login:', error);
-    res.status(500).json({ 
-      message: "Error interno del servidor" 
+    res.status(500).json({
+      message: "Error interno del servidor"
     });
   }
 };
@@ -158,10 +159,10 @@ export const login = async (req, res) => {
 export const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
-    
+
     if (!user) {
-      return res.status(404).json({ 
-        message: "Usuario no encontrado" 
+      return res.status(404).json({
+        message: "Usuario no encontrado"
       });
     }
 
@@ -170,7 +171,7 @@ export const getProfile = async (req, res) => {
         id: user._id,
         nombre: user.nombre,
         apellido: user.apellido,
-        cedula: user.cedula, 
+        cedula: user.cedula,
         correo: user.correo,
         rol: user.rol,
         telefono: user.telefono,
@@ -184,8 +185,8 @@ export const getProfile = async (req, res) => {
 
   } catch (error) {
     console.error('Error al obtener perfil:', error);
-    res.status(500).json({ 
-      message: "Error interno del servidor" 
+    res.status(500).json({
+      message: "Error interno del servidor"
     });
   }
 };
@@ -195,9 +196,9 @@ export const changePassword = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Errores de validación",
-        errors: errors.array() 
+        errors: errors.array()
       });
     }
 
@@ -205,17 +206,17 @@ export const changePassword = async (req, res) => {
     const user = await User.findById(req.user.userId);
 
     if (!user) {
-      return res.status(404).json({ 
-        message: "Usuario no encontrado" 
+      return res.status(404).json({
+        message: "Usuario no encontrado"
       });
     }
 
     // Verificar contraseña actual
     const isCurrentPasswordValid = await user.comparePassword(contraseñaActual);
-    
+
     if (!isCurrentPasswordValid) {
-      return res.status(400).json({ 
-        message: "La contraseña actual es incorrecta" 
+      return res.status(400).json({
+        message: "La contraseña actual es incorrecta"
       });
     }
 
@@ -229,8 +230,8 @@ export const changePassword = async (req, res) => {
 
   } catch (error) {
     console.error('Error al cambiar contraseña:', error);
-    res.status(500).json({ 
-      message: "Error interno del servidor" 
+    res.status(500).json({
+      message: "Error interno del servidor"
     });
   }
 };
@@ -243,8 +244,8 @@ export const logout = async (req, res) => {
     });
   } catch (error) {
     console.error('Error en logout:', error);
-    res.status(500).json({ 
-      message: "Error interno del servidor" 
+    res.status(500).json({
+      message: "Error interno del servidor"
     });
   }
 };
