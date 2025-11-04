@@ -865,6 +865,177 @@ export const notificarAgregarCurso = async (usuarioId, curso) => {
   }
 };
 
+/**
+ * Notificación cuando se crea un nuevo evento
+ * 📧📱💬 Envía notificaciones a:
+ * - DOCENTE que creó el evento (email + push + whatsapp)
+ * - PADRES de los cursos seleccionados (email + push + whatsapp)
+ */
+export const notificarNuevoEvento = async (evento) => {
+  try {
+    console.log(`\n📅 [NUEVO EVENTO] Iniciando notificaciones`);
+    console.log(`Evento: ${evento.titulo} (${evento._id})`);
+    console.log(`Docente: ${evento.docenteId.nombre} ${evento.docenteId.apellido}`);
+    console.log(`Cursos: ${evento.cursosIds.map(c => c.nombre).join(', ')}`);
+
+    const Curso = (await import('../models/Curso.js')).default;
+    const User = (await import('../models/User.js')).default;
+
+    // 1️⃣ Notificar al DOCENTE que creó el evento
+    try {
+      console.log(`\n📧 Notificando al docente creador...`);
+      
+      await crearYEnviarNotificacion({
+        usuarioId: evento.docenteId._id,
+        tipo: 'evento',
+        mensaje: `Has creado el evento "${evento.titulo}" para ${evento.cursosIds.length} curso(s). Los participantes han sido notificados.`,
+        prioridad: 'critica',
+        referenciaId: evento._id,
+        referenciaModelo: 'Evento',
+        metadata: {
+          eventoTitulo: evento.titulo,
+          categoria: evento.categoria,
+          fechaInicio: evento.fechaInicio,
+          fechaFin: evento.fechaFin,
+          hora: evento.hora,
+          ubicacion: evento.ubicacion,
+          cursosNombres: evento.cursosIds.map(c => c.nombre),
+          esCreador: true
+        }
+      });
+
+      console.log(`✅ Docente notificado exitosamente`);
+    } catch (error) {
+      console.error(`❌ Error al notificar al docente:`, error);
+    }
+
+    // 2️⃣ Obtener todos los PADRES de los cursos seleccionados
+    console.log(`\n👨‍👩‍👧 Obteniendo padres de los cursos...`);
+    
+    const cursos = await Curso.find({
+      _id: { $in: evento.cursosIds.map(c => c._id) }
+    }).populate({
+      path: 'participantes.usuarioId',
+      select: 'nombre apellido correo telefono rol'
+    });
+
+    console.log(`✅ ${cursos.length} curso(s) encontrado(s)`);
+
+    // Recolectar padres únicos (un padre puede estar en múltiples cursos)
+    const padresSet = new Set();
+    const padresMap = new Map();
+
+    cursos.forEach(curso => {
+      console.log(`\n📚 Curso: ${curso.nombre}`);
+      console.log(`   Participantes totales: ${curso.participantes.length}`);
+      
+      curso.participantes.forEach(p => {
+        const usuario = p.usuarioId;
+        
+        if (!usuario) {
+          console.log(`   ⚠️ Participante sin usuario (null)`);
+          return;
+        }
+        
+        if (p.etiqueta !== 'padre') {
+          console.log(`   ⚠️ Saltando ${usuario.nombre} (${p.etiqueta})`);
+          return;
+        }
+
+        const padreId = usuario._id.toString();
+        
+        if (!padresSet.has(padreId)) {
+          padresSet.add(padreId);
+          padresMap.set(padreId, usuario);
+          console.log(`   ✅ Agregado: ${usuario.nombre} ${usuario.apellido} (${usuario.correo})`);
+        } else {
+          console.log(`   ℹ️ Ya agregado: ${usuario.nombre} ${usuario.apellido}`);
+        }
+      });
+    });
+
+    const padres = Array.from(padresMap.values());
+    console.log(`\n📊 Total padres únicos a notificar: ${padres.length}`);
+
+    if (padres.length === 0) {
+      console.log(`⚠️ No hay padres para notificar`);
+      return;
+    }
+
+    // 3️⃣ Formatear fechas para el mensaje
+    const fechaInicio = new Date(evento.fechaInicio);
+    const fechaFin = new Date(evento.fechaFin);
+    
+    const fechaInicioFormateada = fechaInicio.toLocaleDateString('es-CO', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    });
+    
+    const fechaFinFormateada = fechaFin.toLocaleDateString('es-CO', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    });
+
+    const mensajeFecha = fechaInicio.toDateString() === fechaFin.toDateString()
+      ? `${fechaInicioFormateada} a las ${evento.hora}`
+      : `Del ${fechaInicioFormateada} al ${fechaFinFormateada} a las ${evento.hora}`;
+
+    // 4️⃣ Enviar notificaciones a cada padre
+    const promesas = padres.map(async (padre, index) => {
+      try {
+        console.log(`\n[${index + 1}/${padres.length}] Notificando a ${padre.nombre} ${padre.apellido}`);
+        console.log(`  - ID: ${padre._id}`);
+        console.log(`  - Email: ${padre.correo}`);
+        console.log(`  - Tel: ${padre.telefono || 'N/A'}`);
+        
+        await crearYEnviarNotificacion({
+          usuarioId: padre._id,
+          tipo: 'evento',
+          mensaje: `Nuevo evento "${evento.titulo}": ${mensajeFecha}. Ubicación: ${evento.ubicacion}`,
+          prioridad: 'critica',
+          referenciaId: evento._id,
+          referenciaModelo: 'Evento',
+          metadata: {
+            eventoTitulo: evento.titulo,
+            categoria: evento.categoria,
+            descripcion: evento.descripcion,
+            fechaInicio: evento.fechaInicio,
+            fechaFin: evento.fechaFin,
+            hora: evento.hora,
+            ubicacion: evento.ubicacion,
+            docenteNombre: `${evento.docenteId.nombre} ${evento.docenteId.apellido}`,
+            cursosNombres: evento.cursosIds.map(c => c.nombre)
+          }
+        });
+
+        console.log(`✅ Notificación enviada exitosamente`);
+        return { success: true, padre: padre._id };
+      } catch (error) {
+        console.error(`❌ Error al notificar a ${padre.nombre}:`, error.message);
+        return { success: false, padre: padre._id, error: error.message };
+      }
+    });
+
+    const resultados = await Promise.allSettled(promesas);
+    
+    const exitosos = resultados.filter(r => r.status === 'fulfilled' && r.value.success).length;
+    const fallidos = resultados.filter(r => r.status === 'rejected' || !r.value.success).length;
+
+    console.log(`\n📊 Resumen de notificaciones de evento:`);
+    console.log(`  ✅ Exitosas: ${exitosos}`);
+    console.log(`  ❌ Fallidas: ${fallidos}`);
+    console.log(`  📝 Total padres: ${padres.length}`);
+    console.log(`  👨‍🏫 Docente notificado: 1`);
+    console.log(`  🎯 Total notificaciones: ${padres.length + 1}`);
+
+  } catch (error) {
+    console.error('❌ Error en notificarNuevoEvento:', error);
+    console.error('Stack:', error.stack);
+  }
+};
+
 // ============ EXPORTAR TODAS LAS FUNCIONES ============
 export default {
   crearYEnviarNotificacion,
@@ -877,5 +1048,6 @@ export default {
   notificarTareaProximaVencer,
   notificarTareaCerrada,
   notificarBienvenida,
-  notificarAgregarCurso
+  notificarAgregarCurso,
+  notificarNuevoEvento
 };

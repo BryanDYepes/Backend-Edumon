@@ -13,7 +13,8 @@ import cursoRoutes from './routes/cursoRoutes.js';
 import moduloRoutes from './routes/moduloRoutes.js';
 import tareaRoutes from './routes/tareaRoutes.js';
 import entregaRoutes from './routes/entregaRoutes.js';
-import notificacionRoutes from './routes/notificacionRoutes.js'; // NUEVO
+import notificacionRoutes from './routes/notificacionRoutes.js';
+import eventoRoutes from './routes/eventoRoutes.js';
 
 dotenv.config();
 
@@ -55,7 +56,8 @@ app.use('/api/cursos', cursoRoutes);
 app.use('/api/modulos', moduloRoutes);
 app.use('/api/tareas', tareaRoutes);
 app.use('/api/entregas', entregaRoutes);
-app.use('/api/notificaciones', notificacionRoutes); // NUEVO
+app.use('/api/notificaciones', notificacionRoutes);
+app.use('/api/eventos', eventoRoutes);
 
 // Ruta de prueba
 app.get('/', (req, res) => {

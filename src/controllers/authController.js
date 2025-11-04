@@ -51,7 +51,7 @@ export const register = async (req, res) => {
       rol,
       telefono,
       fechaRegistro: new Date(),
-      fotoPerfilUrl: 'https://res.cloudinary.com/djvilfslm/image/upload/v1761514239/fotos-perfil-predeterminadas/avatar1.webp' // ✅ NUEVO
+      fotoPerfilUrl: 'https://res.cloudinary.com/djvilfslm/image/upload/v1761514239/fotos-perfil-predeterminadas/avatar1.webp' 
     });
 
     const savedUser = await newUser.save();
@@ -124,8 +124,17 @@ export const login = async (req, res) => {
       });
     }
 
+    // ✅ GUARDAR SI ES PRIMER INICIO (antes de modificarlo)
+    const esPrimerInicio = user.primerInicioSesion;
+
     // Actualizar último acceso
     user.ultimoAcceso = new Date();
+    
+    // ✅ MARCAR COMO NO PRIMER INICIO después del login
+    if (user.primerInicioSesion) {
+      user.primerInicioSesion = false;
+    }
+    
     await user.save();
 
     // Generar token
@@ -144,7 +153,8 @@ export const login = async (req, res) => {
         telefono: user.telefono,
         estado: user.estado,
         ultimoAcceso: user.ultimoAcceso
-      }
+      },
+      primerInicioSesion: esPrimerInicio // ✅ ENVIAR AL FRONTEND
     });
 
   } catch (error) {

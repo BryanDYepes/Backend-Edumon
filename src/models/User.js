@@ -44,6 +44,10 @@ const userSchema = new mongoose.Schema({
     default: Date.now
   },
   ultimoAcceso: { type: Date },
+  primerInicioSesion: { 
+    type: Boolean, 
+    default: true 
+  }, // ✅ NUEVO CAMPO
   estado: {
     type: String,
     enum: ["activo", "suspendido"],
