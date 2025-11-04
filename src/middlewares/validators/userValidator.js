@@ -47,8 +47,8 @@ export const createUserValidator = [
   body('telefono')
     .optional()
     .trim()
-    .isMobilePhone('es-CO')
-    .withMessage('El teléfono no es válido para Colombia')
+    .matches(/^\+57\d{10}$/)
+    .withMessage('El teléfono debe iniciar con +57 y tener 10 dígitos numéricos'),
 ];
 
 // Validador para actualizar usuario
@@ -91,8 +91,8 @@ export const updateUserValidator = [
   body('telefono')
     .optional()
     .trim()
-    .isMobilePhone('es-CO')
-    .withMessage('El teléfono no es válido para Colombia'),
+    .matches(/^\+57\d{10}$/)
+    .withMessage('El teléfono debe iniciar con +57 y tener 10 dígitos numéricos'),
 
   body('estado')
     .optional()
