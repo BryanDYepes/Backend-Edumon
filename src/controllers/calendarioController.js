@@ -32,8 +32,8 @@ export const obtenerCalendarioCurso = async (req, res) => {
       cursoId,
       ...(Object.keys(filtroFechas).length > 0 && { fechaEntrega: filtroFechas })
     })
+      .populate('moduloId', 'titulo')
       .select('titulo descripcion fechaEntrega estado moduloId tipoEntrega')
-      .populate('moduloId', 'nombre')
       .sort({ fechaEntrega: 1 })
       .lean();
 
@@ -56,7 +56,8 @@ export const obtenerCalendarioCurso = async (req, res) => {
       fechaInicio: tarea.fechaEntrega,
       fechaFin: tarea.fechaEntrega,
       estado: tarea.estado,
-      modulo: tarea.moduloId?.nombre || 'Sin módulo',
+      modulo: tarea.moduloId?.titulo || 'Sin módulo',
+      moduloId: tarea.moduloId?._id || null, // Agregar el ID del módulo
       tipoEntrega: tarea.tipoEntrega,
       color: obtenerColorTarea(tarea.estado, tarea.fechaEntrega),
       icono: 'assignment' // Para el frontend
@@ -138,7 +139,7 @@ export const obtenerEventosDia = async (req, res) => {
       cursoId,
       fechaEntrega: { $gte: inicioDia, $lte: finDia }
     })
-      .populate('moduloId', 'nombre')
+      .populate('moduloId', 'titulo')
       .populate('docenteId', 'nombre apellido')
       .lean();
 
@@ -157,6 +158,7 @@ export const obtenerEventosDia = async (req, res) => {
       tareas: tareas.map(t => ({
         ...t,
         tipo: 'tarea',
+        modulo: t.moduloId?.titulo || 'Sin módulo',
         color: obtenerColorTarea(t.estado, t.fechaEntrega)
       })),
       eventos: eventos.map(e => ({
@@ -189,7 +191,7 @@ export const obtenerProximosEventos = async (req, res) => {
       fechaEntrega: { $gte: ahora },
       estado: 'publicada'
     })
-      .populate('moduloId', 'nombre')
+      .populate('moduloId', 'titulo')
       .sort({ fechaEntrega: 1 })
       .limit(parseInt(limite))
       .lean();
@@ -211,7 +213,8 @@ export const obtenerProximosEventos = async (req, res) => {
         tipo: 'tarea',
         titulo: t.titulo,
         fecha: t.fechaEntrega,
-        modulo: t.moduloId?.nombre
+        modulo: t.moduloId?.titulo || 'Sin módulo',
+        moduloId: t.moduloId?._id || null
       })),
       ...eventos.map(e => ({
         id: e._id,

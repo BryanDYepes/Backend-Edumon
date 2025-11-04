@@ -16,6 +16,8 @@ import entregaRoutes from './routes/entregaRoutes.js';
 import notificacionRoutes from './routes/notificacionRoutes.js';
 import eventoRoutes from './routes/eventoRoutes.js';
 import calendarioRoutes from './routes/calendarioRoutes.js';
+import foroRoutes from './routes/foroRoutes.js';
+import mensajeForoRoutes from './routes/mensajeForoRoutes.js';
 
 
 dotenv.config();
@@ -61,6 +63,8 @@ app.use('/api/entregas', entregaRoutes);
 app.use('/api/notificaciones', notificacionRoutes);
 app.use('/api/eventos', eventoRoutes);
 app.use('/api/calendario', calendarioRoutes);
+app.use('/api/foros', foroRoutes);
+app.use('/api/mensajes-foro', mensajeForoRoutes);
 
 // Ruta de prueba
 app.get('/', (req, res) => {
