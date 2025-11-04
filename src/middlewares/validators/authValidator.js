@@ -63,6 +63,4 @@ export const changePasswordValidator = [
   body('contraseñaNueva')
     .isLength({ min: 6, max: 128 })
     .withMessage('La contraseña nueva debe tener entre 6 y 128 caracteres')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-    .withMessage('La contraseña nueva debe contener al menos una minúscula, una mayúscula y un número')
 ];
