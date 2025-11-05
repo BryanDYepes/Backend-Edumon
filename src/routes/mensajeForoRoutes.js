@@ -1,88 +1,110 @@
 import express from 'express';
-import { mensajeForoController } from '../controllers/mensajeForoController.js';
+import { authMiddleware } from '../middlewares/authMiddleware.js';
 import {
-  crearMensajeValidators,
-  actualizarMensajeValidators,
-  idMensajeValidator,
-  listarMensajesValidators,
-  likeValidators
+  crearMensaje,
+  obtenerMensajesPorForo,
+  toggleLikeMensaje,
+  eliminarMensaje,
+  actualizarMensaje
+} from '../controllers/mensajeForoController.js';
+import {
+  crearMensajeValidator,
+  actualizarMensajeValidator,
+  obtenerMensajesPorForoValidator,
+  toggleLikeMensajeValidator,
+  eliminarMensajeValidator
 } from '../middlewares/validators/mensajeForoValidator.js';
-import { authMiddleware as authenticate } from '../middlewares/authMiddleware.js';
-
+import { validationResult } from 'express-validator';
 
 const router = express.Router();
 
-/**
- * @route   POST /api/foros/:foroId/mensajes
- * @desc    Crear un nuevo mensaje en un foro
- * @access  Privado (usuarios con acceso al foro)
- */
+// Middleware para manejar errores de validación
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  next();
+};
+
+// Middleware para subir archivos (imágenes, videos, PDFs)
+import multer from 'multer';
+
+const storage = multer.memoryStorage();
+
+const uploadArchivosMensajeMiddleware = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB máximo
+    files: 5 // Máximo 5 archivos
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/jpg',
+      'image/gif',
+      'image/webp',
+      'video/mp4',
+      'video/mpeg',
+      'video/quicktime',
+      'application/pdf'
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten imágenes (JPEG, PNG, GIF, WEBP), videos (MP4, MPEG, MOV) y archivos PDF'), false);
+    }
+  }
+});
+
+// Rutas de mensajes de foro
+
+// Crear mensaje/respuesta en foro
 router.post(
-  '/:foroId/mensajes',
-  authenticate,
-  crearMensajeValidators,
-  mensajeForoController.crearMensaje
+  '/',
+  authMiddleware,
+  uploadArchivosMensajeMiddleware.array('archivos', 5),
+  crearMensajeValidator,
+  handleValidationErrors,
+  crearMensaje
 );
 
-/**
- * @route   GET /api/foros/:foroId/mensajes
- * @desc    Obtener mensajes de un foro
- * @access  Privado (usuarios con acceso al foro)
- * @query   ?respuestaA=null&page=1&limit=20&sort=reciente
- */
+// Obtener mensajes de un foro
 router.get(
-  '/:foroId/mensajes',
-  authenticate,
-  listarMensajesValidators,
-  mensajeForoController.obtenerMensajes
+  '/foro/:foroId',
+  authMiddleware,
+  obtenerMensajesPorForoValidator,
+  handleValidationErrors,
+  obtenerMensajesPorForo
 );
 
-/**
- * @route   GET /api/mensajes/:id
- * @desc    Obtener un mensaje por ID
- * @access  Privado (usuarios con acceso al foro)
- */
-router.get(
-  '/mensajes/:id',
-  authenticate,
-  idMensajeValidator,
-  mensajeForoController.obtenerMensajePorId
+// Dar/quitar like a un mensaje
+router.post(
+  '/:id/like',
+  authMiddleware,
+  toggleLikeMensajeValidator,
+  handleValidationErrors,
+  toggleLikeMensaje
 );
 
-/**
- * @route   PUT /api/mensajes/:id
- * @desc    Actualizar un mensaje
- * @access  Autor del mensaje
- */
+// Actualizar mensaje
 router.put(
-  '/mensajes/:id',
-  authenticate,
-  actualizarMensajeValidators,
-  mensajeForoController.actualizarMensaje
+  '/:id',
+  authMiddleware,
+  actualizarMensajeValidator,
+  handleValidationErrors,
+  actualizarMensaje
 );
 
-/**
- * @route   DELETE /api/mensajes/:id
- * @desc    Eliminar un mensaje
- * @access  Autor del mensaje o Administradores
- */
+// Eliminar mensaje
 router.delete(
-  '/mensajes/:id',
-  authenticate,
-  idMensajeValidator,
-  mensajeForoController.eliminarMensaje
-);
-
-/**
- * @route   POST /api/mensajes/:id/like
- * @desc    Toggle like en un mensaje
- * @access  Privado (usuarios con acceso al foro)
- */
-router.post(
-  '/mensajes/:id/like',
-  authenticate,
-  likeValidators,
-  mensajeForoController.toggleLike
+  '/:id',
+  authMiddleware,
+  eliminarMensajeValidator,
+  handleValidationErrors,
+  eliminarMensaje
 );
 
 export default router;

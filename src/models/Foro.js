@@ -1,17 +1,37 @@
 import mongoose from "mongoose";
 
+const archivoSchema = new mongoose.Schema({
+  url: { 
+    type: String, 
+    required: true 
+  },
+  publicId: { 
+    type: String, 
+    required: true 
+  },
+  tipo: { 
+    type: String, 
+    enum: ["imagen", "video", "pdf"], 
+    required: true 
+  },
+  nombre: { 
+    type: String, 
+    required: true 
+  }
+}, { _id: false });
+
 const foroSchema = new mongoose.Schema({
   titulo: { 
     type: String, 
     required: true,
     trim: true,
-    maxlength: 150
+    maxlength: 200
   },
   descripcion: { 
     type: String, 
     required: true,
     trim: true,
-    maxlength: 1000
+    maxlength: 2000
   },
   docenteId: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -22,13 +42,24 @@ const foroSchema = new mongoose.Schema({
         const user = await mongoose.model('User').findById(v);
         return user && (user.rol === 'docente' || user.rol === 'administrador');
       },
-      message: 'El creador del foro debe ser un docente o administrador'
+      message: 'El creador debe ser docente o administrador'
     }
   },
-  cursos: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Curso'
-  }],
+  cursoId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Curso',
+    required: true
+  },
+  archivos: {
+    type: [archivoSchema],
+    default: [],
+    validate: {
+      validator: function(v) {
+        return v.length <= 5; // Máximo 5 archivos
+      },
+      message: 'No se pueden adjuntar más de 5 archivos'
+    }
+  },
   fechaCreacion: { 
     type: Date, 
     default: Date.now 
@@ -38,9 +69,9 @@ const foroSchema = new mongoose.Schema({
     enum: ["abierto", "cerrado"], 
     default: "abierto" 
   },
-  publico: {
-    type: Boolean,
-    default: false
+  publico: { 
+    type: Boolean, 
+    default: false 
   }
 }, { 
   timestamps: true,
@@ -50,8 +81,8 @@ const foroSchema = new mongoose.Schema({
 
 // Índices para optimizar consultas
 foroSchema.index({ docenteId: 1 });
+foroSchema.index({ cursoId: 1 });
 foroSchema.index({ estado: 1 });
-foroSchema.index({ cursos: 1 });
 foroSchema.index({ fechaCreacion: -1 });
 
 // Virtual para contar mensajes
@@ -62,32 +93,24 @@ foroSchema.virtual('totalMensajes', {
   count: true
 });
 
-// Método para verificar si un usuario puede acceder al foro
-foroSchema.methods.puedeAcceder = async function(usuarioId) {
-  const user = await mongoose.model('User').findById(usuarioId);
+// Método para verificar si el foro está abierto
+foroSchema.methods.estaAbierto = function() {
+  return this.estado === 'abierto';
+};
+
+// Método para verificar si un usuario tiene acceso al foro
+foroSchema.methods.tieneAcceso = async function(usuarioId) {
+  const curso = await mongoose.model('Curso').findById(this.cursoId);
+  if (!curso) return false;
   
-  if (!user) return false;
+  // El docente del curso siempre tiene acceso
+  if (curso.docenteId.toString() === usuarioId.toString()) return true;
   
-  // Administradores pueden acceder a todo
-  if (user.rol === 'administrador') return true;
-  
-  // Creador del foro puede acceder
+  // El creador del foro tiene acceso
   if (this.docenteId.toString() === usuarioId.toString()) return true;
   
-  // Si es público, cualquiera puede acceder
-  if (this.publico) return true;
-  
-  // Verificar si el usuario es participante de alguno de los cursos del foro
-  const Curso = mongoose.model('Curso');
-  const cursosUsuario = await Curso.find({
-    _id: { $in: this.cursos },
-    $or: [
-      { docenteId: usuarioId },
-      { 'participantes.usuarioId': usuarioId }
-    ]
-  });
-  
-  return cursosUsuario.length > 0;
+  // Los participantes del curso tienen acceso
+  return curso.esParticipante(usuarioId);
 };
 
 export default mongoose.model("Foro", foroSchema);

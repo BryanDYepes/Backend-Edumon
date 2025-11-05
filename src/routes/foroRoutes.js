@@ -1,76 +1,124 @@
 import express from 'express';
-import { foroController } from '../controllers/foroController.js';
+import { authMiddleware, requireRole } from '../middlewares/authMiddleware.js';
 import {
-  crearForoValidators,
-  actualizarForoValidators,
-  idForoValidator,
-  listarForosValidators
+  crearForo,
+  obtenerForosPorCurso,
+  obtenerForoPorId,
+  actualizarForo,
+  eliminarForo,
+  cambiarEstadoForo
+} from '../controllers/foroController.js';
+import {
+  crearForoValidator,
+  actualizarForoValidator,
+  cambiarEstadoForoValidator,
+  obtenerForoPorIdValidator,
+  obtenerForosPorCursoValidator
 } from '../middlewares/validators/foroValidator.js';
-import { authMiddleware as authenticate } from '../middlewares/authMiddleware.js';
-import { requireRole as autorizeRoles } from '../middlewares/authMiddleware.js';
+import { validationResult } from 'express-validator';
 
 const router = express.Router();
 
-/**
- * @route   POST /api/foros
- * @desc    Crear un nuevo foro
- * @access  Docentes y Administradores
- */
+// Middleware para manejar errores de validación
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  next();
+};
+
+// Middleware para subir archivos (imágenes, videos, PDFs)
+import multer from 'multer';
+
+const storage = multer.memoryStorage();
+
+const uploadArchivosForoMiddleware = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB máximo
+    files: 5 // Máximo 5 archivos
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/jpg',
+      'image/gif',
+      'image/webp',
+      'video/mp4',
+      'video/mpeg',
+      'video/quicktime',
+      'application/pdf'
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten imágenes (JPEG, PNG, GIF, WEBP), videos (MP4, MPEG, MOV) y archivos PDF'), false);
+    }
+  }
+});
+
+// Rutas de foros
+
+// Crear foro (solo docente y administrador)
 router.post(
   '/',
-  authenticate,
-  autorizeRoles(['docente', 'administrador']),
-  crearForoValidators,
-  foroController.crearForo
+  authMiddleware,
+  requireRole(['docente', 'administrador']),
+  uploadArchivosForoMiddleware.array('archivos', 5),
+  crearForoValidator,
+  handleValidationErrors,
+  crearForo
 );
 
-/**
- * @route   GET /api/foros
- * @desc    Obtener todos los foros accesibles para el usuario
- * @access  Privado (todos los roles autenticados)
- * @query   ?estado=abierto&cursoId=123&publico=true&page=1&limit=10
- */
+// Obtener foros por curso
 router.get(
-  '/',
-  authenticate,
-  listarForosValidators,
-  foroController.obtenerForos
+  '/curso/:cursoId',
+  authMiddleware,
+  obtenerForosPorCursoValidator,
+  handleValidationErrors,
+  obtenerForosPorCurso
 );
 
-/**
- * @route   GET /api/foros/:id
- * @desc    Obtener un foro por ID
- * @access  Privado (usuarios con acceso al foro)
- */
+// Obtener foro por ID
 router.get(
   '/:id',
-  authenticate,
-  idForoValidator,
-  foroController.obtenerForoPorId
+  authMiddleware,
+  obtenerForoPorIdValidator,
+  handleValidationErrors,
+  obtenerForoPorId
 );
 
-/**
- * @route   PUT /api/foros/:id
- * @desc    Actualizar un foro
- * @access  Creador del foro o Administradores
- */
+// Actualizar foro
 router.put(
   '/:id',
-  authenticate,
-  actualizarForoValidators,
-  foroController.actualizarForo
+  authMiddleware,
+  requireRole(['docente', 'administrador']),
+  actualizarForoValidator,
+  handleValidationErrors,
+  actualizarForo
 );
 
-/**
- * @route   DELETE /api/foros/:id
- * @desc    Eliminar un foro
- * @access  Creador del foro o Administradores
- */
+// Cambiar estado del foro (abrir/cerrar)
+router.patch(
+  '/:id/estado',
+  authMiddleware,
+  requireRole(['docente', 'administrador']),
+  cambiarEstadoForoValidator,
+  handleValidationErrors,
+  cambiarEstadoForo
+);
+
+// Eliminar foro
 router.delete(
   '/:id',
-  authenticate,
-  idForoValidator,
-  foroController.eliminarForo
+  authMiddleware,
+  requireRole(['docente', 'administrador']),
+  obtenerForoPorIdValidator,
+  handleValidationErrors,
+  eliminarForo
 );
 
 export default router;
