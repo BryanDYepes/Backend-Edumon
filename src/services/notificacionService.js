@@ -6,7 +6,7 @@ import webpush from 'web-push';
 import { emitirNotificacion } from '../socket/socketHandlers.js';
 import dotenv from "dotenv";
 dotenv.config({ path: "./.env" }); // fuerza la carga del .env en la raíz
-// ============ CONFIGURACIONES ============
+// Configuraciones
 
 // Configurar Web Push
 webpush.setVapidDetails(
@@ -40,7 +40,7 @@ const twilioClient = twilio(
   process.env.TWILIO_AUTH_TOKEN
 );
 
-// ============ FUNCIÓN PRINCIPAL ============
+// Función principal
 
 /**
  * Crea y envía una notificación por los canales apropiados
@@ -78,7 +78,7 @@ export const crearYEnviarNotificacion = async (datos) => {
 
     await notificacion.save();
 
-    // ========== ENVIAR POR WEBSOCKET (SIEMPRE) ==========
+    // Enviar por websocket
     try {
       await emitirNotificacion(notificacion);
       notificacion.canalEnviado.websocket = true;
@@ -86,7 +86,7 @@ export const crearYEnviarNotificacion = async (datos) => {
       console.error('Error al enviar por WebSocket:', error);
     }
 
-    // ========== ENVIAR PUSH (Alta/Crítica prioridad) ==========
+    // Enviar push
     if (['alta', 'critica'].includes(prioridad)) {
       try {
         await enviarNotificacionPush(usuario, notificacion);
@@ -96,7 +96,7 @@ export const crearYEnviarNotificacion = async (datos) => {
       }
     }
 
-    // ========== ENVIAR WHATSAPP (Crítica prioridad) ==========
+    // Enviar WhatsApp
     if (prioridad === 'critica' && usuario.telefono) {
       try {
         await enviarNotificacionWhatsApp(usuario, notificacion);
@@ -106,7 +106,7 @@ export const crearYEnviarNotificacion = async (datos) => {
       }
     }
 
-    // ========== ENVIAR EMAIL (Solo docentes, prioridad critica/crítica) ==========
+    // Enviar email (solo a docentes)
     console.log(`\n📧 [VERIFICACIÓN EMAIL]`);
     console.log(`  - Rol usuario: "${usuario.rol}"`);
     console.log(`  - Es docente: ${usuario.rol === 'docente'}`);
@@ -136,7 +136,7 @@ export const crearYEnviarNotificacion = async (datos) => {
   }
 };
 
-// ============ FUNCIONES DE ENVÍO ============
+// Funciones de envio
 
 /**
  * Envía notificación push
@@ -238,7 +238,7 @@ export const enviarNotificacionEmail = async (usuario, notificacion) => {
   }
 };
 
-// ============ FUNCIONES AUXILIARES ============
+// Funciones auxiliares
 
 function obtenerTituloPush(tipo) {
   const titulos = {
@@ -298,7 +298,7 @@ function generarHTMLEmail(usuario, notificacion) {
 }
 
 
-// ============ FUNCIONES PARA MANEJAR SUSCRIPCIONES PUSH ============
+// Funciones suscripciones push
 
 /**
  * Obtener suscripciones push de un usuario
@@ -332,8 +332,6 @@ async function eliminarSuscripcionPush(endpoint) {
   }
 }
 
-// ============ NOTIFICACIONES ESPECÍFICAS POR TIPO ============
-
 /**
  * Notificación cuando se crea una tarea
  */
@@ -354,18 +352,18 @@ export const notificarNuevaTarea = async (tarea) => {
     if (tarea.cursoId?.participantes) {
       // Ya está poblado
       curso = tarea.cursoId;
-      console.log(`✅ Curso ya poblado: ${curso.nombre}`);
+      console.log(`Curso ya poblado: ${curso.nombre}`);
     } else {
       // Poblar curso
       curso = await Curso.findById(tarea.cursoId).populate({
         path: 'participantes.usuarioId',
         select: 'nombre apellido correo telefono rol'
       });
-      console.log(`✅ Curso poblado: ${curso.nombre}`);
+      console.log(`Curso poblado: ${curso.nombre}`);
     }
 
     if (!curso) {
-      console.error('❌ Curso no encontrado');
+      console.error('Curso no encontrado');
       return;
     }
 
@@ -375,21 +373,21 @@ export const notificarNuevaTarea = async (tarea) => {
     let destinatarios = [];
 
     if (tarea.asignacionTipo === 'todos') {
-      console.log(`📢 Asignación a TODOS los padres del curso`);
+      console.log(`Asignación a todos los padres del curso`);
       
       // Filtrar solo padres activos
       destinatarios = curso.participantes
         .filter(p => {
           const usuario = p.usuarioId;
           if (!usuario) {
-            console.log(`⚠️ Participante sin usuario (null)`);
+            console.log(`Participante sin usuario (null)`);
             return false;
           }
           if (p.etiqueta !== 'padre') {
-            console.log(`⚠️ Saltando ${usuario.nombre} (${p.etiqueta})`);
+            console.log(`Saltando ${usuario.nombre} (${p.etiqueta})`);
             return false;
           }
-          console.log(`✅ Incluir ${usuario.nombre} ${usuario.apellido} (${usuario._id})`);
+          console.log(`Incluir ${usuario.nombre} ${usuario.apellido} (${usuario._id})`);
           return true;
         })
         .map(p => p.usuarioId);
@@ -415,21 +413,21 @@ export const notificarNuevaTarea = async (tarea) => {
         rol: 'padre' // Solo traer padres
       }).select('nombre apellido correo telefono rol');
 
-      console.log(`✅ Participantes encontrados en BD: ${destinatarios.length}`);
+      console.log(`Participantes encontrados en BD: ${destinatarios.length}`);
       
       destinatarios.forEach(u => {
         console.log(`  - ${u.nombre} ${u.apellido} (${u._id}) - Rol: ${u.rol} - Tel: ${u.telefono || 'N/A'}`);
       });
     }
 
-    console.log(`\n📊 Total destinatarios a notificar: ${destinatarios.length}`);
+    console.log(`\nTotal destinatarios a notificar: ${destinatarios.length}`);
 
     if (destinatarios.length === 0) {
-      console.log(`⚠️ No hay destinatarios para notificar`);
+      console.log(`No hay destinatarios para notificar`);
       
       // Debug adicional
       if (tarea.asignacionTipo === 'seleccionados') {
-        console.log(`\n🔍 DEBUG: Revisando participantes seleccionados...`);
+        console.log(`\nDEBUG: Revisando participantes seleccionados...`);
         const User = (await import('../models/User.js')).default;
         const participantesIds = tarea.participantesSeleccionados.map(p => p._id || p);
         
@@ -480,10 +478,10 @@ export const notificarNuevaTarea = async (tarea) => {
           }
         });
 
-        console.log(`✅ Notificación enviada exitosamente`);
+        console.log(`Notificación enviada exitosamente`);
         return { success: true, usuario: usuario._id };
       } catch (error) {
-        console.error(`❌ Error al notificar a ${usuario.nombre}:`, error.message);
+        console.error(`Error al notificar a ${usuario.nombre}:`, error.message);
         return { success: false, usuario: usuario._id, error: error.message };
       }
     });
@@ -493,13 +491,13 @@ export const notificarNuevaTarea = async (tarea) => {
     const exitosos = resultados.filter(r => r.status === 'fulfilled' && r.value.success).length;
     const fallidos = resultados.filter(r => r.status === 'rejected' || !r.value.success).length;
 
-    console.log(`\n📊 Resumen de notificaciones de tarea:`);
-    console.log(`  ✅ Exitosas: ${exitosos}`);
-    console.log(`  ❌ Fallidas: ${fallidos}`);
-    console.log(`  📝 Total: ${destinatarios.length}`);
+    console.log(`\nResumen de notificaciones de tarea:`);
+    console.log(`  Exitosas: ${exitosos}`);
+    console.log(`  Fallidas: ${fallidos}`);
+    console.log(`  Total: ${destinatarios.length}`);
 
   } catch (error) {
-    console.error('❌ Error en notificarNuevaTarea:', error);
+    console.error('Error en notificarNuevaTarea:', error);
     console.error('Stack:', error.stack);
   }
 };
@@ -509,7 +507,7 @@ export const notificarNuevaTarea = async (tarea) => {
  */
 export const notificarTareaCerrada = async (tarea) => {
   try {
-    console.log(`\n🔒 [TAREA CERRADA] Iniciando notificaciones`);
+    console.log(`\n[TAREA CERRADA] Iniciando notificaciones`);
     console.log(`Tarea: ${tarea.titulo} (${tarea._id})`);
 
     // Obtener curso con participantes
@@ -526,7 +524,7 @@ export const notificarTareaCerrada = async (tarea) => {
     }
 
     if (!curso) {
-      console.error('❌ Curso no encontrado');
+      console.error('Curso no encontrado');
       return;
     }
 
@@ -549,7 +547,7 @@ export const notificarTareaCerrada = async (tarea) => {
       }
     }
 
-    console.log(`📊 Total destinatarios: ${destinatarios.length}`);
+    console.log(`Total destinatarios: ${destinatarios.length}`);
 
     const promesas = destinatarios.map(usuario =>
       crearYEnviarNotificacion({
@@ -570,29 +568,29 @@ export const notificarTareaCerrada = async (tarea) => {
     const resultados = await Promise.allSettled(promesas);
     const exitosos = resultados.filter(r => r.status === 'fulfilled').length;
 
-    console.log(`✅ Notificaciones de cierre enviadas: ${exitosos}/${destinatarios.length}`);
+    console.log(`Notificaciones de cierre enviadas: ${exitosos}/${destinatarios.length}`);
   } catch (error) {
-    console.error('❌ Error en notificarTareaCerrada:', error);
+    console.error('Error en notificarTareaCerrada:', error);
   }
 };
 
 export const notificarNuevaEntrega = async (entrega) => {
   try {
-    console.log(`\n📤 [NUEVA ENTREGA] Iniciando notificación`);
+    console.log(`\n[NUEVA ENTREGA] Iniciando notificación`);
     
     // Verificar que entrega esté completamente poblada
     if (!entrega.tareaId) {
-      console.error('❌ entrega.tareaId no está poblada');
+      console.error('entrega.tareaId no está poblada');
       return;
     }
     
     if (!entrega.tareaId.docenteId) {
-      console.error('❌ entrega.tareaId.docenteId no está poblada');
+      console.error('entrega.tareaId.docenteId no está poblada');
       return;
     }
     
     if (!entrega.padreId) {
-      console.error('❌ entrega.padreId no está poblada');
+      console.error(' entrega.padreId no está poblada');
       return;
     }
 
@@ -600,19 +598,18 @@ export const notificarNuevaEntrega = async (entrega) => {
     const docente = tarea.docenteId;
     const padre = entrega.padreId;
 
-    console.log(`✅ Datos verificados:`);
+    console.log(`  Datos verificados:`);
     console.log(`  Tarea: ${tarea.titulo}`);
     console.log(`  Docente: ${docente.nombre} ${docente.apellido} (${docente.correo})`);
     console.log(`  Padre: ${padre.nombre} ${padre.apellido}`);
 
-    // 🔍 LOGS DE DEBUG CRÍTICOS - AGREGAR ESTOS
-    console.log(`\n🔍 [DEBUG] Verificando IDs antes de notificar:`);
-    console.log(`  🎯 Usuario a notificar (docente._id): ${docente._id}`);
-    console.log(`  👤 Rol del docente: ${docente.rol}`);
-    console.log(`  📧 Email del docente: ${docente.correo}`);
-    console.log(`  ⚠️ NO debe ser padre._id: ${padre._id}`);
+    // LOGS DE DEBUG CRÍTICOS
+    console.log(`\n [DEBUG] Verificando IDs antes de notificar:`);
+    console.log(`   Usuario a notificar (docente._id): ${docente._id}`);
+    console.log(`   Rol del docente: ${docente.rol}`);
+    console.log(`   Email del docente: ${docente.correo}`);
+    console.log(`   NO debe ser padre._id: ${padre._id}`);
 
-    // ⚠️ IMPORTANTE: Usar prioridad 'critica' para asegurar envío de email
     await crearYEnviarNotificacion({
       usuarioId: docente._id,
       tipo: 'entrega',
@@ -628,9 +625,9 @@ export const notificarNuevaEntrega = async (entrega) => {
       }
     });
 
-    console.log('✅ Notificación de entrega enviada al docente (con email)');
+    console.log('Notificación de entrega enviada al docente (con email)');
   } catch (error) {
-    console.error('❌ Error en notificarNuevaEntrega:', error);
+    console.error('Error en notificarNuevaEntrega:', error);
     console.error('Stack:', error.stack);
   }
 };
@@ -641,26 +638,26 @@ export const notificarNuevaEntrega = async (entrega) => {
  */
 export const notificarCalificacion = async (entrega) => {
   try {
-    console.log(`\n⭐ [CALIFICACIÓN] Iniciando notificación`);
+    console.log(`\n[CALIFICACIÓN] Iniciando notificación`);
     
     const Tarea = (await import('../models/Tarea.js')).default;
     const User = (await import('../models/User.js')).default;
     
     const tarea = await Tarea.findById(entrega.tareaId);
     if (!tarea) {
-      console.error('❌ Tarea no encontrada');
+      console.error('Tarea no encontrada');
       return;
     }
 
     const padre = await User.findById(entrega.padreId);
     if (!padre) {
-      console.error('❌ Padre no encontrado');
+      console.error('Padre no encontrado');
       return;
     }
 
     const docente = await User.findById(entrega.calificacion.docenteId);
     if (!docente) {
-      console.error('❌ Docente no encontrado');
+      console.error('Docente no encontrado');
       return;
     }
 
@@ -668,7 +665,7 @@ export const notificarCalificacion = async (entrega) => {
     console.log(`Padre: ${padre.nombre} ${padre.apellido} (${padre.telefono || 'sin teléfono'})`);
     console.log(`Nota: ${entrega.calificacion.nota}/100`);
 
-    // 📱 ENVÍO PERSONALIZADO: Solo WhatsApp al padre
+    // ENVÍO PERSONALIZADO: Solo WhatsApp al padre
     const notificacion = new Notificacion({
       usuarioId: padre._id,
       tipo: 'calificacion',
@@ -691,9 +688,9 @@ export const notificarCalificacion = async (entrega) => {
     try {
       await emitirNotificacion(notificacion);
       notificacion.canalEnviado.websocket = true;
-      console.log('✅ WebSocket enviado');
+      console.log('WebSocket enviado');
     } catch (error) {
-      console.error('❌ Error al enviar WebSocket:', error);
+      console.error('Error al enviar WebSocket:', error);
     }
 
     // 2️⃣ WhatsApp (solo si tiene teléfono)
@@ -701,20 +698,18 @@ export const notificarCalificacion = async (entrega) => {
       try {
         await enviarNotificacionWhatsApp(padre, notificacion);
         notificacion.canalEnviado.whatsapp = true;
-        console.log(`✅ WhatsApp enviado a ${padre.telefono}`);
+        console.log(`WhatsApp enviado a ${padre.telefono}`);
       } catch (error) {
-        console.error('❌ Error al enviar WhatsApp:', error);
+        console.error('Error al enviar WhatsApp:', error);
       }
     } else {
-      console.warn(`⚠️ Padre sin teléfono, no se envió WhatsApp`);
+      console.warn(`Padre sin teléfono, no se envió WhatsApp`);
     }
 
-    // 🚫 NO enviamos Push ni Email al padre (solo WhatsApp)
-
     await notificacion.save();
-    console.log('✅ Notificación de calificación enviada (WhatsApp únicamente)');
+    console.log('Notificación de calificación enviada (WhatsApp únicamente)');
   } catch (error) {
-    console.error('❌ Error en notificarCalificacion:', error);
+    console.error('Error en notificarCalificacion:', error);
   }
 };
 
@@ -756,7 +751,7 @@ export const notificarTareaProximaVencer = async (tarea) => {
       crearYEnviarNotificacion({
         usuarioId: usuario._id,
         tipo: 'tarea',
-        mensaje: `⚠️ Recordatorio: La tarea "${tarea.titulo}" vence en 24 horas`,
+        mensaje: `Recordatorio: La tarea "${tarea.titulo}" vence en 24 horas`,
         prioridad: 'critica',
         referenciaId: tarea._id,
         referenciaModelo: 'Tarea',
@@ -816,7 +811,7 @@ export const notificarAgregarCurso = async (usuarioId, curso) => {
       usuarioId,
       tipo: 'sistema',
       mensaje: `Has sido agregado al curso "${curso.nombre}"`,
-      prioridad: 'critica', // 👈 Mantener crítica
+      prioridad: 'critica', 
       referenciaId: curso._id,
       referenciaModelo: 'Curso',
       metadata: {
@@ -844,17 +839,17 @@ export const notificarAgregarCurso = async (usuarioId, curso) => {
       console.error('Error al enviar Push:', error);
     }
 
-    // 👇 WHATSAPP - Verificar que el usuario tenga teléfono
+    // Verifica que el usuario tenga teléfono antes de enviar WhatsApp
     if (usuario.telefono) {
       try {
         await enviarNotificacionWhatsApp(usuario, notificacion);
         notificacion.canalEnviado.whatsapp = true;
-        console.log(`✅ WhatsApp enviado a ${usuario.nombre} ${usuario.apellido} (${usuario.telefono})`);
+        console.log(`WhatsApp enviado a ${usuario.nombre} ${usuario.apellido} (${usuario.telefono})`);
       } catch (error) {
-        console.error(`❌ Error al enviar WhatsApp a ${usuario.telefono}:`, error);
+        console.error(`Error al enviar WhatsApp a ${usuario.telefono}:`, error);
       }
     } else {
-      console.warn(`⚠️ Usuario ${usuario.nombre} ${usuario.apellido} sin teléfono registrado`);
+      console.warn(`Usuario ${usuario.nombre} ${usuario.apellido} sin teléfono registrado`);
     }
 
     await notificacion.save();
@@ -867,13 +862,13 @@ export const notificarAgregarCurso = async (usuarioId, curso) => {
 
 /**
  * Notificación cuando se crea un nuevo evento
- * 📧📱💬 Envía notificaciones a:
+ * Envía notificaciones a:
  * - DOCENTE que creó el evento (email + push + whatsapp)
  * - PADRES de los cursos seleccionados (email + push + whatsapp)
  */
 export const notificarNuevoEvento = async (evento) => {
   try {
-    console.log(`\n📅 [NUEVO EVENTO] Iniciando notificaciones`);
+    console.log(`\n[NUEVO EVENTO] Iniciando notificaciones`);
     console.log(`Evento: ${evento.titulo} (${evento._id})`);
     console.log(`Docente: ${evento.docenteId.nombre} ${evento.docenteId.apellido}`);
     console.log(`Cursos: ${evento.cursosIds.map(c => c.nombre).join(', ')}`);
@@ -881,9 +876,9 @@ export const notificarNuevoEvento = async (evento) => {
     const Curso = (await import('../models/Curso.js')).default;
     const User = (await import('../models/User.js')).default;
 
-    // 1️⃣ Notificar al DOCENTE que creó el evento
+    // 1️Notificar al DOCENTE que creó el evento
     try {
-      console.log(`\n📧 Notificando al docente creador...`);
+      console.log(`\nNotificando al docente creador...`);
       
       await crearYEnviarNotificacion({
         usuarioId: evento.docenteId._id,
@@ -904,13 +899,13 @@ export const notificarNuevoEvento = async (evento) => {
         }
       });
 
-      console.log(`✅ Docente notificado exitosamente`);
+      console.log(`Docente notificado exitosamente`);
     } catch (error) {
-      console.error(`❌ Error al notificar al docente:`, error);
+      console.error(`Error al notificar al docente:`, error);
     }
 
-    // 2️⃣ Obtener todos los PADRES de los cursos seleccionados
-    console.log(`\n👨‍👩‍👧 Obteniendo padres de los cursos...`);
+    // Obtener todos los PADRES de los cursos seleccionados
+    console.log(`\nObteniendo padres de los cursos...`);
     
     const cursos = await Curso.find({
       _id: { $in: evento.cursosIds.map(c => c._id) }
@@ -919,26 +914,26 @@ export const notificarNuevoEvento = async (evento) => {
       select: 'nombre apellido correo telefono rol'
     });
 
-    console.log(`✅ ${cursos.length} curso(s) encontrado(s)`);
+    console.log(`${cursos.length} curso(s) encontrado(s)`);
 
     // Recolectar padres únicos (un padre puede estar en múltiples cursos)
     const padresSet = new Set();
     const padresMap = new Map();
 
     cursos.forEach(curso => {
-      console.log(`\n📚 Curso: ${curso.nombre}`);
+      console.log(`\n Curso: ${curso.nombre}`);
       console.log(`   Participantes totales: ${curso.participantes.length}`);
       
       curso.participantes.forEach(p => {
         const usuario = p.usuarioId;
         
         if (!usuario) {
-          console.log(`   ⚠️ Participante sin usuario (null)`);
+          console.log(`    Participante sin usuario (null)`);
           return;
         }
         
         if (p.etiqueta !== 'padre') {
-          console.log(`   ⚠️ Saltando ${usuario.nombre} (${p.etiqueta})`);
+          console.log(`    Saltando ${usuario.nombre} (${p.etiqueta})`);
           return;
         }
 
@@ -947,22 +942,22 @@ export const notificarNuevoEvento = async (evento) => {
         if (!padresSet.has(padreId)) {
           padresSet.add(padreId);
           padresMap.set(padreId, usuario);
-          console.log(`   ✅ Agregado: ${usuario.nombre} ${usuario.apellido} (${usuario.correo})`);
+          console.log(`    Agregado: ${usuario.nombre} ${usuario.apellido} (${usuario.correo})`);
         } else {
-          console.log(`   ℹ️ Ya agregado: ${usuario.nombre} ${usuario.apellido}`);
+          console.log(`    Ya agregado: ${usuario.nombre} ${usuario.apellido}`);
         }
       });
     });
 
     const padres = Array.from(padresMap.values());
-    console.log(`\n📊 Total padres únicos a notificar: ${padres.length}`);
+    console.log(`\n Total padres únicos a notificar: ${padres.length}`);
 
     if (padres.length === 0) {
-      console.log(`⚠️ No hay padres para notificar`);
+      console.log(` No hay padres para notificar`);
       return;
     }
 
-    // 3️⃣ Formatear fechas para el mensaje
+    // Formatear fechas para el mensaje
     const fechaInicio = new Date(evento.fechaInicio);
     const fechaFin = new Date(evento.fechaFin);
     
@@ -982,7 +977,7 @@ export const notificarNuevoEvento = async (evento) => {
       ? `${fechaInicioFormateada} a las ${evento.hora}`
       : `Del ${fechaInicioFormateada} al ${fechaFinFormateada} a las ${evento.hora}`;
 
-    // 4️⃣ Enviar notificaciones a cada padre
+    // Enviar notificaciones a cada padre
     const promesas = padres.map(async (padre, index) => {
       try {
         console.log(`\n[${index + 1}/${padres.length}] Notificando a ${padre.nombre} ${padre.apellido}`);
@@ -1010,10 +1005,10 @@ export const notificarNuevoEvento = async (evento) => {
           }
         });
 
-        console.log(`✅ Notificación enviada exitosamente`);
+        console.log(` Notificación enviada exitosamente`);
         return { success: true, padre: padre._id };
       } catch (error) {
-        console.error(`❌ Error al notificar a ${padre.nombre}:`, error.message);
+        console.error(` Error al notificar a ${padre.nombre}:`, error.message);
         return { success: false, padre: padre._id, error: error.message };
       }
     });
@@ -1023,20 +1018,20 @@ export const notificarNuevoEvento = async (evento) => {
     const exitosos = resultados.filter(r => r.status === 'fulfilled' && r.value.success).length;
     const fallidos = resultados.filter(r => r.status === 'rejected' || !r.value.success).length;
 
-    console.log(`\n📊 Resumen de notificaciones de evento:`);
-    console.log(`  ✅ Exitosas: ${exitosos}`);
-    console.log(`  ❌ Fallidas: ${fallidos}`);
-    console.log(`  📝 Total padres: ${padres.length}`);
-    console.log(`  👨‍🏫 Docente notificado: 1`);
-    console.log(`  🎯 Total notificaciones: ${padres.length + 1}`);
+    console.log(`\n Resumen de notificaciones de evento:`);
+    console.log(`   Exitosas: ${exitosos}`);
+    console.log(`   Fallidas: ${fallidos}`);
+    console.log(`   Total padres: ${padres.length}`);
+    console.log(`   Docente notificado: 1`);
+    console.log(`   Total notificaciones: ${padres.length + 1}`);
 
   } catch (error) {
-    console.error('❌ Error en notificarNuevoEvento:', error);
+    console.error(' Error en notificarNuevoEvento:', error);
     console.error('Stack:', error.stack);
   }
 };
 
-// ============ EXPORTAR TODAS LAS FUNCIONES ============
+//Exportar las funciones
 export default {
   crearYEnviarNotificacion,
   enviarNotificacionPush,

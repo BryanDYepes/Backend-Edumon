@@ -44,25 +44,39 @@ export const subirImagenCloudinary = async (fileBuffer, mimetype, folder = 'gene
  */
 export const subirArchivoCloudinary = async (fileBuffer, mimetype, folder = 'archivos', originalName = 'archivo') => {
   try {
+    console.log(`📤 Subiendo archivo: ${originalName} (${mimetype})`);
+    
     const b64 = Buffer.from(fileBuffer).toString('base64');
     const dataURI = `data:${mimetype};base64,${b64}`;
 
+    // Determinar resource_type correcto
+    let resourceType = 'raw'; // Por defecto para documentos
+    if (mimetype.startsWith('image/')) {
+      resourceType = 'image';
+    } else if (mimetype.startsWith('video/')) {
+      resourceType = 'video';
+    }
+
     const result = await cloudinary.uploader.upload(dataURI, {
       folder: folder,
-      resource_type: 'auto',
-      public_id: `${Date.now()}_${originalName.split('.')[0]}`, // Nombre único
-      format: originalName.split('.').pop() // Mantener extensión original
+      resource_type: resourceType, // ⚠️ CAMBIO IMPORTANTE: Usar resourceType específico
+      public_id: `${Date.now()}_${originalName.split('.')[0].replace(/[^a-zA-Z0-9]/g, '_')}`, // Limpiar nombre
+      use_filename: true,
+      unique_filename: true
     });
+
+    console.log(`✅ Archivo subido exitosamente: ${result.secure_url}`);
 
     return {
       url: result.secure_url,
       publicId: result.public_id,
-      format: result.format
+      format: result.format || originalName.split('.').pop()
     };
 
   } catch (error) {
-    console.error('Error al subir archivo a Cloudinary:', error);
-    throw new Error('Error al subir el archivo');
+    console.error('❌ Error al subir archivo a Cloudinary:', error);
+    console.error('Detalles del error:', error.message);
+    throw new Error(`Error al subir el archivo: ${error.message}`);
   }
 };
 
@@ -73,27 +87,37 @@ export const subirArchivoCloudinary = async (fileBuffer, mimetype, folder = 'arc
  */
 export const eliminarArchivoCloudinary = async (publicId, resourceType = 'image') => {
   try {
-    if (!publicId) return;
+    if (!publicId) {
+      console.log('⚠️ No se proporcionó publicId para eliminar');
+      return;
+    }
     
-    await cloudinary.uploader.destroy(publicId, {
-      resource_type: resourceType
+    console.log(`🗑️ Eliminando archivo: ${publicId} (tipo: ${resourceType})`);
+    
+    const result = await cloudinary.uploader.destroy(publicId, {
+      resource_type: resourceType,
+      invalidate: true // Invalidar caché de CDN
     });
     
-    console.log(`Archivo eliminado de Cloudinary: ${publicId}`);
+    console.log(`✅ Archivo eliminado de Cloudinary: ${publicId}`, result);
+    return result;
   } catch (error) {
-    console.error('Error al eliminar archivo de Cloudinary:', error);
-    // No lanzar error para no interrumpir el flujo
+    console.error('❌ Error al eliminar archivo de Cloudinary:', error);
+    // No lanzar error para no interrumpir el flujo principal
   }
 };
 
 /**
  * Obtiene información de un archivo en Cloudinary
  * @param {String} publicId - Public ID del archivo
+ * @param {String} resourceType - Tipo de recurso ('image', 'video', 'raw')
  * @returns {Promise<Object>} - Información del archivo
  */
-export const obtenerInfoArchivo = async (publicId) => {
+export const obtenerInfoArchivo = async (publicId, resourceType = 'image') => {
   try {
-    const result = await cloudinary.api.resource(publicId);
+    const result = await cloudinary.api.resource(publicId, {
+      resource_type: resourceType
+    });
     return result;
   } catch (error) {
     console.error('Error al obtener info del archivo:', error);

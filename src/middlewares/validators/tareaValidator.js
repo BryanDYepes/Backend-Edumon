@@ -50,7 +50,6 @@ export const createTareaValidator = [
     .notEmpty().withMessage('El ID del módulo es obligatorio')
     .isMongoId().withMessage('El ID del módulo no es válido'),
   
-  // NUEVAS VALIDACIONES
   body('asignacionTipo')
     .optional()
     .isIn(["todos", "seleccionados"])
@@ -111,8 +110,7 @@ export const updateTareaValidator = [
   body('moduloId')
     .optional()
     .isMongoId().withMessage('El ID del módulo no es válido'),
-  
-  // NUEVAS VALIDACIONES PARA UPDATE
+    
   body('asignacionTipo')
     .optional()
     .isIn(["todos", "seleccionados"])

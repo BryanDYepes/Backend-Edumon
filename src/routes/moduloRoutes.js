@@ -6,7 +6,7 @@ import {
   getModulosByCurso,
   updateModulo, 
   deleteModulo,
-  restoreModulo // Importar nueva función
+  restoreModulo
 } from '../controllers/moduloController.js';
 import { authMiddleware } from '../middlewares/authMiddleware.js';
 import { 

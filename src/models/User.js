@@ -47,7 +47,7 @@ const userSchema = new mongoose.Schema({
   primerInicioSesion: { 
     type: Boolean, 
     default: true 
-  }, // ✅ NUEVO CAMPO
+  }, 
   estado: {
     type: String,
     enum: ["activo", "suspendido"],

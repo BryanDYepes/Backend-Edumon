@@ -29,7 +29,7 @@ const imageFileFilter = (req, file, cb) => {
   }
 };
 
-// 📸 Configuración para fotos de perfil de USUARIOS
+// Configuración para fotos de perfil de USUARIOS
 const storageFotoPerfil = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, fotoPerfilDir);
@@ -51,7 +51,7 @@ export const uploadFotoPerfil = multer({
   }
 });
 
-// 🎨 Configuración para fotos PREDETERMINADAS (admin sube)
+// Configuración para fotos PREDETERMINADAS (admin sube)
 const storageFotoPredeterminada = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, fotoPredeterminadaDir);

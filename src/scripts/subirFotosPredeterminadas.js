@@ -13,7 +13,7 @@ const subirFotosPredeterminadas = async () => {
     const fotosDir = path.join(__dirname, '../uploads/fotos-predeterminadas');
     const archivos = fs.readdirSync(fotosDir);
 
-    console.log(`📤 Subiendo ${archivos.length} fotos predeterminadas a Cloudinary...`);
+    console.log(`Subiendo ${archivos.length} fotos predeterminadas a Cloudinary...`);
 
     const resultados = [];
 
@@ -22,7 +22,7 @@ const subirFotosPredeterminadas = async () => {
       
       // Verificar que sea una imagen
       if (!['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(path.extname(archivo).toLowerCase())) {
-        console.log(`⏭️  Saltando ${archivo} (no es una imagen)`);
+        console.log(`⏭Saltando ${archivo} (no es una imagen)`);
         continue;
       }
 
@@ -43,9 +43,9 @@ const subirFotosPredeterminadas = async () => {
           publicId: result.public_id
         });
 
-        console.log(`✅ ${archivo} subido correctamente`);
+        console.log(`${archivo} subido correctamente`);
       } catch (error) {
-        console.error(`❌ Error al subir ${archivo}:`, error.message);
+        console.error(`Error al subir ${archivo}:`, error.message);
       }
     }
 
@@ -62,7 +62,7 @@ const subirFotosPredeterminadas = async () => {
 // Ejecutar si se llama directamente
 subirFotosPredeterminadas()
   .then(() => {
-    console.log('\n✨ Proceso completado');
+    console.log('\nProceso completado');
     process.exit(0);
   })
   .catch((error) => {

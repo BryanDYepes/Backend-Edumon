@@ -34,7 +34,7 @@ export const canCreateEntrega = async (req, res, next) => {
     }
 
 
-    // --- 🔒 Validar asignación tipo "seleccionados" ---
+    // --- Validar asignación tipo "seleccionados" ---
     if (tarea.asignacionTipo === "seleccionados") {
       const seleccionados = tarea.participantesSeleccionados || [];
 
@@ -48,7 +48,7 @@ export const canCreateEntrega = async (req, res, next) => {
       }
     }
 
-    // --- 🔒 Validar si el usuario pertenece al curso ---
+    // --- Validar si el usuario pertenece al curso ---
     const participantes = tarea.cursoId?.participantes || [];
 
     const participanteValido = participantes.some(p =>
@@ -64,7 +64,7 @@ export const canCreateEntrega = async (req, res, next) => {
     next();
 
   } catch (error) {
-    console.error("🔥 Error en canCreateEntrega:", error);
+    console.error("Error en canCreateEntrega:", error);
     res.status(500).json({ message: "Error interno al validar la entrega" });
   }
 };

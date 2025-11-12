@@ -30,7 +30,7 @@ export const setupSocketIO = (io) => {
 
   io.on('connection', async (socket) => {
     const userId = socket.userId;
-    console.log(`✅ Usuario conectado: ${userId}`);
+    console.log(`Usuario conectado: ${userId}`);
 
     // Guardar conexión
     if (!usuariosConectados.has(userId)) {
@@ -49,7 +49,7 @@ export const setupSocketIO = (io) => {
       console.error('Error al obtener conteo inicial:', error);
     }
 
-    // ========== EVENTOS DEL CLIENTE ==========
+    // Eventos del cliente
 
     // Cliente solicita notificaciones
     socket.on('notificaciones:solicitar', async (data) => {
@@ -124,9 +124,9 @@ export const setupSocketIO = (io) => {
       }
     });
 
-    // ========== DESCONEXIÓN ==========
+    // Desconexióm
     socket.on('disconnect', () => {
-      console.log(`❌ Usuario desconectado: ${userId}`);
+      console.log(`Usuario desconectado: ${userId}`);
       
       const sockets = usuariosConectados.get(userId);
       if (sockets) {

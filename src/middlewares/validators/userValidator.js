@@ -22,7 +22,7 @@ export const createUserValidator = [
     .trim()
     .isLength({ min: 6, max: 10 })
     .withMessage('La cédula debe tener entre 6 y 10 dígitos')
-    .matches(/^\d{6,10}$/)  // ✅ CAMBIADO
+    .matches(/^\d{6,10}$/)  
     .withMessage('La cédula solo debe contener números'),
 
   body('correo')
@@ -74,7 +74,7 @@ export const updateUserValidator = [
     .trim()
     .isLength({ min: 6, max: 10 })
     .withMessage('La cédula debe tener entre 6 y 10 dígitos')
-    .matches(/^\d{6,10}$/)  // ✅ CAMBIADO
+    .matches(/^\d{6,10}$/)  
     .withMessage('La cédula solo debe contener números'),
 
   body('correo')

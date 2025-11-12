@@ -20,7 +20,7 @@ import {
 } from '../middlewares/validators/cursoValidator.js';
 import { 
   uploadImagenCloudinary, 
-  uploadImagenYCSV,        // MPORTAR EL NUEVO
+  uploadImagenYCSV,        
   uploadCSVCloudinary 
 } from '../middlewares/cloudinaryMiddleware.js';
 

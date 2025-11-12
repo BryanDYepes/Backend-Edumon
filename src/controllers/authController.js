@@ -124,13 +124,13 @@ export const login = async (req, res) => {
       });
     }
 
-    // ✅ GUARDAR SI ES PRIMER INICIO (antes de modificarlo)
+    // GUARDAR SI ES PRIMER INICIO (antes de modificarlo)
     const esPrimerInicio = user.primerInicioSesion;
 
     // Actualizar último acceso
     user.ultimoAcceso = new Date();
     
-    // ✅ MARCAR COMO NO PRIMER INICIO después del login
+    // MARCAR COMO NO PRIMER INICIO después del login
     if (user.primerInicioSesion) {
       user.primerInicioSesion = false;
     }
@@ -154,7 +154,7 @@ export const login = async (req, res) => {
         estado: user.estado,
         ultimoAcceso: user.ultimoAcceso
       },
-      primerInicioSesion: esPrimerInicio // ✅ ENVIAR AL FRONTEND
+      primerInicioSesion: esPrimerInicio 
     });
 
   } catch (error) {

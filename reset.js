@@ -13,7 +13,7 @@ const resetDB = async () => {
 
     console.log("Conectado a MongoDB...");
 
-    // Esto borra TODA la base de datos actual
+    // Esto borra toda la base de datos actual
     await mongoose.connection.dropDatabase();
 
     console.log("Base de datos reseteada con éxito.");

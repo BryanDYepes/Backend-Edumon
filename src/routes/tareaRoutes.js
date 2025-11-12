@@ -57,7 +57,7 @@ const upload = multer({
   }
 });
 
-// ============ RUTAS ============
+// Rutas
 
 // Crear tarea - Solo docentes pueden crear
 router.post(

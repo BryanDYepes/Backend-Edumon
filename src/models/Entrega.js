@@ -15,10 +15,14 @@ const entregaSchema = new mongoose.Schema({
     type: Date, 
     default: Date.now 
   },
-  archivos: { 
-    type: [String],
-    default: []
-  },
+  // ⚠️ CAMBIAR ESTO:
+  archivosAdjuntos: [{
+    url: { type: String, required: true },
+    publicId: { type: String, required: true },
+    nombreOriginal: { type: String, required: true },
+    tipoArchivo: { type: String, required: true },
+    tamano: { type: Number, required: true }
+  }],
   textoRespuesta: { 
     type: String,
     trim: true,

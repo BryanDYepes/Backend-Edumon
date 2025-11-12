@@ -21,7 +21,7 @@ import {
 
 const router = express.Router();
 
-// ============ RUTAS PROTEGIDAS ============
+// Rutas
 
 // Obtener mis notificaciones (con paginación y filtros)
 router.get(

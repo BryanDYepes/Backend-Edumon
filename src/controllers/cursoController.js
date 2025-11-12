@@ -24,7 +24,7 @@ async function procesarUsuariosCSV(file, cursoId) {
       throw new Error("Curso no encontrado");
     }
 
-    console.log('📋 Procesando CSV para curso:', curso.nombre);
+    console.log(' Procesando CSV para curso:', curso.nombre);
 
     const stream = Readable.from(file.buffer.toString());
     const usuarios = [];
@@ -53,7 +53,7 @@ async function procesarUsuariosCSV(file, cursoId) {
         .on('error', reject);
     });
 
-    console.log(`👥 Total usuarios a procesar: ${usuarios.length}`);
+    console.log(` Total usuarios a procesar: ${usuarios.length}`);
 
     // Procesar cada usuario
     for (const userData of usuarios) {
@@ -61,7 +61,7 @@ async function procesarUsuariosCSV(file, cursoId) {
         const { nombre, apellido, telefono, cedula, contraseña } = userData;
         const correoTemporal = `${cedula}@temp.com`;
 
-        console.log(`\n🔍 Procesando: ${nombre} ${apellido} (${cedula})`);
+        console.log(`\n Procesando: ${nombre} ${apellido} (${cedula})`);
 
         // Buscar usuario existente por cédula o correo temporal
         let usuario = await User.findOne({
@@ -71,10 +71,10 @@ async function procesarUsuariosCSV(file, cursoId) {
         let esNuevoUsuario = false;
 
         if (usuario) {
-          console.log(`✅ Usuario existente encontrado: ${usuario._id}`);
+          console.log(`Usuario existente encontrado: ${usuario._id}`);
           
           if (curso.esParticipante(usuario._id)) {
-            console.log(`⚠️ Usuario YA está en el curso`);
+            console.log(`Usuario YA está en el curso`);
             resultados.duplicados.push({
               nombre: `${usuario.nombre} ${usuario.apellido}`,
               cedula,
@@ -82,7 +82,7 @@ async function procesarUsuariosCSV(file, cursoId) {
             });
             continue; // Saltar al siguiente
           } else {
-            console.log(`➕ Agregando usuario existente al curso`);
+            console.log(`Agregando usuario existente al curso`);
             curso.agregarParticipante(usuario._id, 'padre');
             resultados.exitosos.push({
               nombre: `${usuario.nombre} ${usuario.apellido}`,
@@ -91,7 +91,7 @@ async function procesarUsuariosCSV(file, cursoId) {
             });
           }
         } else {
-          console.log(`🆕 Creando nuevo usuario`);
+          console.log(`Creando nuevo usuario`);
           const nuevoUsuario = new User({
             nombre,
             apellido,
@@ -104,7 +104,7 @@ async function procesarUsuariosCSV(file, cursoId) {
           });
 
           usuario = await nuevoUsuario.save();
-          console.log(`✅ Usuario creado: ${usuario._id}`);
+          console.log(`Usuario creado: ${usuario._id}`);
           
           esNuevoUsuario = true;
           curso.agregarParticipante(usuario._id, 'padre');
@@ -116,27 +116,27 @@ async function procesarUsuariosCSV(file, cursoId) {
           });
         }
 
-        // 🔔 ENVIAR NOTIFICACIONES
+        // ENVIAR NOTIFICACIONES
         try {
           // 1️⃣ Notificación de bienvenida (solo para nuevos usuarios)
           if (esNuevoUsuario) {
-            console.log(`📧 Enviando notificación de BIENVENIDA a ${usuario._id}`);
+            console.log(` Enviando notificación de BIENVENIDA a ${usuario._id}`);
             const { notificarBienvenida } = await import('../services/notificacionService.js');
             await notificarBienvenida(usuario._id);
-            console.log(`✅ Bienvenida enviada`);
+            console.log(`Bienvenida enviada`);
           }
 
           // 2️⃣ Notificación de agregar al curso (para todos)
-          console.log(`📧 Enviando notificación de AGREGAR CURSO a ${usuario._id}`);
+          console.log(` Enviando notificación de AGREGAR CURSO a ${usuario._id}`);
           await notificarAgregarCurso(usuario._id, curso);
-          console.log(`✅ Notificación de curso enviada`);
+          console.log(` Notificación de curso enviada`);
 
         } catch (notifError) {
-          console.error(`❌ Error al enviar notificaciones:`, notifError);
+          console.error(`Error al enviar notificaciones:`, notifError);
         }
 
       } catch (error) {
-        console.error(`❌ Error procesando usuario ${userData.cedula}:`, error);
+        console.error(`Error procesando usuario ${userData.cedula}:`, error);
         
         if (error.code === 11000) {
           // Duplicado - intentar recuperar y agregar al curso
@@ -185,7 +185,7 @@ async function procesarUsuariosCSV(file, cursoId) {
     }
 
     await curso.save();
-    console.log(`\n✅ CSV procesado completamente`);
+    console.log(`\nCSV procesado completamente`);
 
     return {
       resumen: {
@@ -198,7 +198,7 @@ async function procesarUsuariosCSV(file, cursoId) {
     };
 
   } catch (error) {
-    console.error('❌ Error en procesarUsuariosCSV:', error);
+    console.error('Error en procesarUsuariosCSV:', error);
     throw error;
   }
 }
@@ -536,7 +536,7 @@ export const agregarParticipante = async (req, res) => {
     const { nombre, apellido, cedula, contraseña, telefono } = req.body;
     const usuarioLogueado = req.user;
 
-    console.log(`\n🔵 Agregando participante individual al curso ${id}`);
+    console.log(`\nAgregando participante individual al curso ${id}`);
     console.log(`Datos recibidos:`, { nombre, apellido, cedula, telefono });
 
     if (!nombre || !apellido || !cedula) {
@@ -560,7 +560,7 @@ export const agregarParticipante = async (req, res) => {
       });
     }
 
-    console.log(`📚 Curso encontrado: ${curso.nombre}`);
+    console.log(`Curso encontrado: ${curso.nombre}`);
 
     // Validar permisos
     if (usuarioLogueado.rol === 'docente' &&
@@ -584,10 +584,10 @@ export const agregarParticipante = async (req, res) => {
     });
 
     if (usuario) {
-      console.log(`✅ Usuario existente encontrado: ${usuario._id}`);
+      console.log(`Usuario existente encontrado: ${usuario._id}`);
       
       if (curso.esParticipante(usuario._id)) {
-        console.log(`⚠️ Usuario YA está inscrito en el curso`);
+        console.log(`Usuario YA está inscrito en el curso`);
         return res.status(400).json({
           message: "El usuario ya está inscrito en este curso",
           usuario: {
@@ -607,7 +607,7 @@ export const agregarParticipante = async (req, res) => {
       };
 
     } else {
-      console.log(`🆕 Creando nuevo usuario`);
+      console.log(`Creando nuevo usuario`);
       
       const nuevoUsuario = new User({
         nombre: nombre.trim(),
@@ -621,7 +621,7 @@ export const agregarParticipante = async (req, res) => {
       });
 
       usuario = await nuevoUsuario.save();
-      console.log(`✅ Usuario creado: ${usuario._id}`);
+      console.log(`Usuario creado: ${usuario._id}`);
       
       esNuevoUsuario = true;
       curso.agregarParticipante(usuario._id, 'padre');
@@ -635,29 +635,29 @@ export const agregarParticipante = async (req, res) => {
     }
 
     await curso.save();
-    console.log(`✅ Curso guardado con nuevo participante`);
+    console.log(`Curso guardado con nuevo participante`);
 
     // Popular el curso ANTES de enviar notificaciones
     await curso.populate('participantes.usuarioId', 'nombre apellido correo rol cedula telefono');
 
-    // 🔔 ENVIAR NOTIFICACIONES
+    // ENVIAR NOTIFICACIONES
     if (usuarioFinalId) {
       try {
         // 1️⃣ Notificación de bienvenida (solo nuevos usuarios)
         if (esNuevoUsuario) {
-          console.log(`📧 Enviando notificación de BIENVENIDA a ${usuarioFinalId}`);
+          console.log(`Enviando notificación de BIENVENIDA a ${usuarioFinalId}`);
           const { notificarBienvenida } = await import('../services/notificacionService.js');
           await notificarBienvenida(usuarioFinalId);
-          console.log(`✅ Bienvenida enviada`);
+          console.log(`Bienvenida enviada`);
         }
 
-        // 2️⃣ Notificación de agregar al curso (para todos)
-        console.log(`📧 Enviando notificación de AGREGAR CURSO a ${usuarioFinalId}`);
+        // Notificación de agregar al curso (para todos)
+        console.log(`Enviando notificación de AGREGAR CURSO a ${usuarioFinalId}`);
         await notificarAgregarCurso(usuarioFinalId, curso);
-        console.log(`✅ Notificación de curso enviada`);
+        console.log(`Notificación de curso enviada`);
 
       } catch (notifError) {
-        console.error('❌ Error al enviar notificaciones:', notifError);
+        console.error('Error al enviar notificaciones:', notifError);
         console.error('Stack:', notifError.stack);
         // No fallar la operación si falla la notificación
       }
@@ -670,7 +670,7 @@ export const agregarParticipante = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error al agregar participante:', error);
+    console.error('Error al agregar participante:', error);
     console.error('Stack:', error.stack);
 
     if (error.code === 11000) {

@@ -4,11 +4,12 @@ import { validationResult } from 'express-validator';
 import { subirArchivoCloudinary, eliminarArchivoCloudinary } from '../utils/cloudinaryUpload.js';
 import { notificarNuevaEntrega, notificarCalificacion } from '../services/notificacionService.js';
 
-// ==================== ENDPOINTS PARA PADRE ====================
-
-// Crear entrega
+//Crear entrega
 export const createEntrega = async (req, res) => {
   try {
+    console.log('📦 Body recibido:', req.body);
+    console.log('📎 Archivos recibidos:', req.files?.length || 0);
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -50,26 +51,43 @@ export const createEntrega = async (req, res) => {
     // Procesar archivos adjuntos si existen
     let archivosAdjuntos = [];
     if (req.files && req.files.length > 0) {
+      console.log(`📤 Procesando ${req.files.length} archivo(s)...`);
+      
       for (const file of req.files) {
-        const archivoSubido = await subirArchivoCloudinary(
-          file.buffer,
-          file.mimetype,
-          'archivos-entregas',
-          file.originalname
-        );
+        try {
+          console.log(`⬆️ Subiendo: ${file.originalname} (${file.mimetype}, ${file.size} bytes)`);
+          
+          const archivoSubido = await subirArchivoCloudinary(
+            file.buffer,
+            file.mimetype,
+            'archivos-entregas',
+            file.originalname
+          );
 
-        archivosAdjuntos.push({
-          url: archivoSubido.url,
-          publicId: archivoSubido.publicId,
-          nombreOriginal: file.originalname,
-          tipoArchivo: file.mimetype,
-          tamano: file.size
-        });
+          archivosAdjuntos.push({
+            url: archivoSubido.url,
+            publicId: archivoSubido.publicId,
+            nombreOriginal: file.originalname,
+            tipoArchivo: file.mimetype,
+            tamano: file.size
+          });
+          
+          console.log(`✅ Archivo subido: ${file.originalname}`);
+        } catch (uploadError) {
+          console.error(`❌ Error subiendo ${file.originalname}:`, uploadError);
+          // Continuar con los demás archivos
+        }
       }
+      
+      console.log(`📊 Total archivos subidos: ${archivosAdjuntos.length}`);
+    } else {
+      console.log('⚠️ No se recibieron archivos');
     }
 
     const newEntrega = new Entrega({
-      ...req.body,
+      tareaId,
+      padreId,
+      textoRespuesta: req.body.textoRespuesta,
       estado,
       archivosAdjuntos
     });
@@ -87,7 +105,7 @@ export const createEntrega = async (req, res) => {
       entrega: savedEntrega
     });
   } catch (error) {
-    console.error('Error al crear entrega:', error);
+    console.error('❌ Error al crear entrega:', error);
     res.status(500).json({
       message: "Error interno del servidor",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -232,7 +250,6 @@ export const enviarEntrega = async (req, res) => {
     entrega.fechaEntrega = new Date();
     await entrega.save();
 
-    // 🔥 CAMBIO CRÍTICO: Popular COMPLETAMENTE la entrega ANTES de notificar
     const entregaCompleta = await Entrega.findById(id)
       .populate({
         path: 'tareaId',
@@ -249,13 +266,13 @@ export const enviarEntrega = async (req, res) => {
 
     // Verificar que la tarea tenga docente asignado
     if (!entregaCompleta.tareaId.docenteId) {
-      console.error('❌ La tarea no tiene docente asignado');
+      console.error('La tarea no tiene docente asignado');
       return res.status(400).json({
         message: "Error: La tarea no tiene docente asignado"
       });
     }
 
-    console.log('\n📤 [ENVIAR ENTREGA] Datos completos:');
+    console.log('\n[ENVIAR ENTREGA] Datos completos:');
     console.log('Tarea:', entregaCompleta.tareaId.titulo);
     console.log('Docente:', entregaCompleta.tareaId.docenteId.nombre, entregaCompleta.tareaId.docenteId.apellido);
     console.log('Docente Email:', entregaCompleta.tareaId.docenteId.correo);
@@ -307,20 +324,33 @@ export const deleteEntrega = async (req, res) => {
 
     // Eliminar archivos adjuntos de Cloudinary
     if (entrega.archivosAdjuntos && entrega.archivosAdjuntos.length > 0) {
+      console.log(`🗑️ Eliminando ${entrega.archivosAdjuntos.length} archivo(s) de Cloudinary...`);
+      
       for (const archivo of entrega.archivosAdjuntos) {
-        await eliminarArchivoCloudinary(archivo.publicId, 'raw');
+        // Determinar el resource_type según el tipo de archivo
+        let resourceType = 'raw';
+        if (archivo.tipoArchivo.startsWith('image/')) {
+          resourceType = 'image';
+        } else if (archivo.tipoArchivo.startsWith('video/')) {
+          resourceType = 'video';
+        }
+        
+        await eliminarArchivoCloudinary(archivo.publicId, resourceType);
       }
     }
 
     await Entrega.findByIdAndDelete(id);
 
+    console.log('✅ Entrega eliminada exitosamente');
+
     res.json({
       message: "Entrega eliminada exitosamente"
     });
   } catch (error) {
-    console.error('Error al eliminar entrega:', error);
+    console.error('❌ Error al eliminar entrega:', error);
     res.status(500).json({
-      message: "Error interno del servidor"
+      message: "Error interno del servidor",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -329,6 +359,8 @@ export const deleteEntrega = async (req, res) => {
 export const eliminarArchivoEntrega = async (req, res) => {
   try {
     const { id, archivoId } = req.params;
+
+    console.log(`🗑️ Eliminando archivo ${archivoId} de entrega ${id}`);
 
     const entrega = await Entrega.findById(id);
 
@@ -358,25 +390,36 @@ export const eliminarArchivoEntrega = async (req, res) => {
 
     // Eliminar de Cloudinary
     const archivo = entrega.archivosAdjuntos[archivoIndex];
-    await eliminarArchivoCloudinary(archivo.publicId, 'raw');
+    
+    // Determinar el resource_type según el tipo de archivo
+    let resourceType = 'raw';
+    if (archivo.tipoArchivo.startsWith('image/')) {
+      resourceType = 'image';
+    } else if (archivo.tipoArchivo.startsWith('video/')) {
+      resourceType = 'video';
+    }
+    
+    await eliminarArchivoCloudinary(archivo.publicId, resourceType);
 
     // Eliminar del array
     entrega.archivosAdjuntos.splice(archivoIndex, 1);
     await entrega.save();
+
+    console.log(`✅ Archivo eliminado: ${archivo.nombreOriginal}`);
 
     res.json({
       message: "Archivo eliminado exitosamente",
       entrega
     });
   } catch (error) {
-    console.error('Error al eliminar archivo:', error);
+    console.error('❌ Error al eliminar archivo:', error);
     res.status(500).json({
-      message: "Error interno del servidor"
+      message: "Error interno del servidor",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
-// ==================== ENDPOINTS PARA DOCENTE ====================
 
 // Listar todas las entregas (con filtros y paginación)
 export const getAllEntregas = async (req, res) => {
@@ -616,7 +659,6 @@ export const calificarEntrega = async (req, res) => {
   }
 };
 
-// ==================== ENDPOINT COMPARTIDO ====================
 
 // Obtener entrega por ID (accesible por docente y padre dueño)
 export const getEntregaById = async (req, res) => {

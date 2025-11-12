@@ -122,10 +122,10 @@ export const createTarea = async (req, res) => {
 // Listar tareas con paginación, filtros y permisos
 export const getTareas = async (req, res) => {
   try {
-    console.log('🚀 GET /tareas ejecutado');
-    console.log('👤 Usuario ID:', req.user.userId);
-    console.log('🎭 Rol:', req.user.rol);
-    console.log('📋 Query params:', req.query);
+    console.log('GET /tareas ejecutado');
+    console.log('Usuario ID:', req.user.userId);
+    console.log('Rol:', req.user.rol);
+    console.log('Query params:', req.query);
     
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -148,10 +148,9 @@ export const getTareas = async (req, res) => {
     if (userRole === 'docente') {
       // Docentes ven SOLO sus tareas
       filter.docenteId = userId;
-      console.log('🎓 Filtro docente aplicado');
+      console.log('Filtro docente aplicado');
     } 
-    else if (userRole === 'estudiante' || userRole === 'padre') { // ✅ AGREGADO ESTUDIANTE
-      console.log('👨‍🎓 Aplicando filtro estudiante/padre');
+    else if (userRole === 'estudiante' || userRole === 'padre') { 
       
       // Obtener cursos donde el usuario participa
       const Curso = (await import('../models/Curso.js')).default;
@@ -161,7 +160,7 @@ export const getTareas = async (req, res) => {
       
       const cursoIds = cursosDelUsuario.map(c => c._id);
       
-      console.log('📚 Cursos del usuario:', cursoIds);
+      console.log('Cursos del usuario:', cursoIds);
 
       if (cursoIds.length === 0) {
         // Si no está en ningún curso, solo ver tareas asignadas directamente
@@ -182,14 +181,14 @@ export const getTareas = async (req, res) => {
         ];
       }
     } else {
-      console.log('👑 Usuario admin - sin filtros');
+      console.log(' Usuario admin - sin filtros');
     }
 
-    console.log('🔍 Filtro final aplicado:', JSON.stringify(filter, null, 2));
+    console.log('Filtro final aplicado:', JSON.stringify(filter, null, 2));
 
     // Contar todas las tareas sin filtro (para debug)
     const totalSinFiltro = await Tarea.countDocuments({});
-    console.log('📊 Total tareas en DB (sin filtro):', totalSinFiltro);
+    console.log('Total tareas en DB (sin filtro):', totalSinFiltro);
 
     const tareas = await Tarea.find(filter)
       .populate('docenteId', 'nombre apellido')
@@ -209,8 +208,8 @@ export const getTareas = async (req, res) => {
 
     const total = await Tarea.countDocuments(filter);
     
-    console.log('✅ Tareas encontradas con filtro:', tareas.length);
-    console.log('📊 Total con filtro:', total);
+    console.log('Tareas encontradas con filtro:', tareas.length);
+    console.log('Total con filtro:', total);
 
     res.json({
       tareas,
@@ -223,7 +222,7 @@ export const getTareas = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Error al obtener tareas:', error);
+    console.error('Error al obtener tareas:', error);
     res.status(500).json({
       message: "Error interno del servidor",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -242,7 +241,7 @@ export const getTareaById = async (req, res) => {
       });
     }
 
-    const tarea = await Tarea.findById(req.params.id)  // ✅ CORREGIDO
+    const tarea = await Tarea.findById(req.params.id) 
       .populate('docenteId', 'nombre apellido correo')
       .populate({
         path: 'cursoId',
@@ -402,7 +401,7 @@ export const closeTarea = async (req, res) => {
       });
     }
 
-    await notificarTareaCerrada(updatedTarea); // ✅ CORREGIDO
+    await notificarTareaCerrada(updatedTarea); 
 
     res.json({
       message: "Tarea cerrada exitosamente",

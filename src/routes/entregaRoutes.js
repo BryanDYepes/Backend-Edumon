@@ -6,6 +6,7 @@ import {
   updateEntrega,
   enviarEntrega,
   deleteEntrega,
+  eliminarArchivoEntrega,
   
   // Endpoints Docente
   getAllEntregas,
@@ -32,9 +33,12 @@ import {
   filterEntregasForUser
 } from '../middlewares/entregaAuthMiddleware.js';
 
+// IMPORTAR EL MIDDLEWARE DE MULTER PARA ARCHIVOS
+import { uploadArchivoCloudinary } from '../middlewares/cloudinaryMiddleware.js';
+
 const router = express.Router();
 
-// ==================== RUTAS PARA DOCENTE ====================
+// Rutas para docentes
 
 /**
  * GET /entregas
@@ -83,16 +87,19 @@ router.patch(
   calificarEntrega
 );
 
-// ==================== RUTAS PARA PADRE ====================
+// Rutas para padres
 
 /**
  * POST /entregas
  * Crear una nueva entrega
  * Body: { tareaId, padreId, archivos?, textoRespuesta?, estado? }
+ * 
+ * ⚠️ IMPORTANTE: uploadArchivoCloudinary.array('archivos', 5) va ANTES de los validators
  */
 router.post(
   '/', 
-  authMiddleware, 
+  authMiddleware,
+  uploadArchivoCloudinary.array('archivos', 5), // ← ESTO VA PRIMERO
   createEntregaValidator,
   canCreateEntrega,
   createEntrega
@@ -115,7 +122,8 @@ router.get(
  */
 router.put(
   '/:id', 
-  authMiddleware, 
+  authMiddleware,
+  uploadArchivoCloudinary.array('archivos', 5), // ← Y AQUÍ TAMBIÉN
   updateEntregaValidator,
   canModifyEntrega,
   updateEntrega
@@ -144,7 +152,18 @@ router.delete(
   deleteEntrega
 );
 
-// ==================== RUTA COMPARTIDA ====================
+/**
+ * DELETE /entregas/:id/archivos/:archivoId
+ * Eliminar un archivo específico de una entrega
+ */
+router.delete(
+  '/:id/archivos/:archivoId',
+  authMiddleware,
+  canModifyEntrega,
+  eliminarArchivoEntrega
+);
+
+// Rutas compartidas
 
 /**
  * GET /entregas/:id
