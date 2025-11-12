@@ -76,7 +76,10 @@ export const uploadArchivoCloudinary = multer({
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'image/jpeg',
       'image/png',
-      'image/jpg'
+      'image/jpg',
+      'video/mp4', 
+      'video/mpeg', 
+      'video/webm' 
     ];
     
     if (allowedTypes.includes(file.mimetype)) {
