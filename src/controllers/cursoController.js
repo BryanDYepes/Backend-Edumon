@@ -785,7 +785,7 @@ export const getParticipantesCurso = async (req, res) => {
     const curso = await Curso.findById(id)
       .populate({
         path: 'participantes.usuarioId',
-        select: 'nombre apellido correo telefono rol estado'
+        select: 'nombre apellido correo telefono rol estado fotoPerfilUrl' // ✅ Agregado fotoPerfilUrl
       });
 
     if (!curso) {
@@ -830,6 +830,7 @@ export const getParticipantesCurso = async (req, res) => {
       rol: p.usuarioId.rol,
       estado: p.usuarioId.estado,
       etiqueta: p.etiqueta,
+      fotoPerfilUrl: p.usuarioId.fotoPerfilUrl, // ✅ Agregado al objeto de respuesta
       nombreCompleto: `${p.usuarioId.nombre} ${p.usuarioId.apellido}`
     }));
 
