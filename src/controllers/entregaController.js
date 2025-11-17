@@ -603,7 +603,7 @@ export const getEntregasByPadre = async (req, res) => {
   }
 };
 
-// Calificar entrega
+// Calificar o actualizar calificación de entrega
 export const calificarEntrega = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -631,11 +631,20 @@ export const calificarEntrega = async (req, res) => {
       });
     }
 
+    // Verificar si es una nueva calificación o una actualización
+    const esActualizacion = entrega.calificacion && entrega.calificacion.nota !== undefined;
+
+    // Actualizar o crear calificación
     entrega.calificacion = {
       nota,
       comentario,
       fechaCalificacion: new Date(),
-      docenteId
+      docenteId,
+      // Opcional: guardar historial de modificaciones
+      ...(esActualizacion && {
+        fechaUltimaModificacion: new Date(),
+        notaAnterior: entrega.calificacion.nota
+      })
     };
 
     await entrega.save();
@@ -645,11 +654,19 @@ export const calificarEntrega = async (req, res) => {
       .populate('padreId', 'nombre apellido correo')
       .populate('calificacion.docenteId', 'nombre apellido');
 
-    await notificarCalificacion(entrega);
+    // Notificar según si es nueva calificación o actualización
+    if (esActualizacion) {
+      await notificarActualizacionCalificacion(entrega);
+    } else {
+      await notificarCalificacion(entrega);
+    }
 
     res.json({
-      message: "Entrega calificada exitosamente",
-      entrega: updatedEntrega
+      message: esActualizacion 
+        ? "Calificación actualizada exitosamente" 
+        : "Entrega calificada exitosamente",
+      entrega: updatedEntrega,
+      esActualizacion
     });
   } catch (error) {
     console.error('Error al calificar entrega:', error);
