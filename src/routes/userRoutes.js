@@ -7,14 +7,16 @@ import {
   updateUser, 
   deleteUser,
   getFotosPredeterminadas,
-  updateFotoPerfil
+  updateFotoPerfil,
+  updateFcmToken
 } from '../controllers/userController.js';
 import { authMiddleware } from "../middlewares/authMiddleware.js";
 import { uploadImagenCloudinary } from '../middlewares/cloudinaryMiddleware.js';
 import { 
   createUserValidator,
   updateUserValidator,
-  userIdValidator
+  userIdValidator,
+  updateFcmTokenValidator
 } from '../middlewares/validators/userValidator.js';
 
 const router = express.Router();
@@ -34,5 +36,12 @@ router.get('/fotos-predeterminadas', authMiddleware, getFotosPredeterminadas);
 router.get('/:id', authMiddleware, userIdValidator, getUserById);
 router.put('/:id', authMiddleware, updateUserValidator, updateUser);
 router.delete('/:id', authMiddleware, userIdValidator, deleteUser);
+
+// Actualizar FCM token
+router.put('/me/fcm-token', 
+  authMiddleware, 
+  updateFcmTokenValidator, 
+  updateFcmToken
+);
 
 export default router;

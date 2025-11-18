@@ -53,7 +53,17 @@ const userSchema = new mongoose.Schema({
     enum: ["activo", "suspendido"],
     default: "activo"
   },
-  fotoPerfilUrl: { type: String }
+  fotoPerfilUrl: { 
+    type: String 
+  },
+  fcmToken: {
+    type: String,
+    default: null
+  },
+  fcmTokenActualizadoEn: {
+    type: Date,
+    default: null
+  }
 }, { timestamps: true });
 
 

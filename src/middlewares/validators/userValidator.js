@@ -117,3 +117,14 @@ export const userIdValidator = [
     .isMongoId()
     .withMessage('ID de usuario inválido')
 ];
+
+// Validador para actualizar FCM token
+export const updateFcmTokenValidator = [
+  body('fcmToken')
+    .notEmpty()
+    .withMessage('El token FCM es requerido')
+    .isString()
+    .withMessage('El token FCM debe ser una cadena de texto')
+    .isLength({ min: 20 })
+    .withMessage('El token FCM no parece válido')
+];

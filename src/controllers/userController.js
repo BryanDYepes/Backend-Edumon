@@ -316,3 +316,50 @@ export const updateFotoPerfil = async (req, res) => {
     });
   }
 };
+
+// Actualizar FCM token
+export const updateFcmToken = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        message: "Errores de validación",
+        errors: errors.array()
+      });
+    }
+
+    const { userId } = req.user;
+    const { fcmToken } = req.body;
+
+    console.log(`Actualizando FCM token para usuario: ${userId}`);
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { 
+        fcmToken: fcmToken,
+        fcmTokenActualizadoEn: new Date()
+      },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        message: "Usuario no encontrado"
+      });
+    }
+
+    console.log(`FCM token actualizado correctamente`);
+
+    res.json({
+      message: "Token FCM actualizado exitosamente",
+      fcmToken: fcmToken,
+      actualizadoEn: user.fcmTokenActualizadoEn
+    });
+  } catch (error) {
+    console.error('Error al actualizar FCM token:', error);
+    res.status(500).json({
+      message: "Error al actualizar el token FCM",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
