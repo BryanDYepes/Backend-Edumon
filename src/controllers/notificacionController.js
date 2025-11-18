@@ -47,13 +47,17 @@ export const getMisNotificaciones = async (req, res) => {
       page = 1, 
       limit = 20, 
       tipo, 
-      leido 
+      leido // ✅ Ya viene como Boolean desde query params
     } = req.query;
 
     const query = { usuarioId: req.user._id };
 
     if (tipo) query.tipo = tipo;
-    if (leido !== undefined) query.leido = leido === 'true';
+    
+    // ✅ CORRECCIÓN: Usar directamente el valor booleano
+    if (leido !== undefined && leido !== null) {
+      query.leido = leido; // Ya es boolean gracias al validador
+    }
 
     const skip = (page - 1) * limit;
 
@@ -68,6 +72,10 @@ export const getMisNotificaciones = async (req, res) => {
     ]);
 
     const noLeidas = await Notificacion.contarNoLeidas(req.user._id);
+
+    console.log(`📋 Notificaciones encontradas: ${notificaciones.length}`);
+    console.log(`📊 Query: ${JSON.stringify(query)}`);
+    console.log(`🔢 Total en BD: ${total}, No leídas: ${noLeidas}`);
 
     res.status(200).json({
       notificaciones,
