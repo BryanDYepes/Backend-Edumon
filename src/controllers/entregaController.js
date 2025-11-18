@@ -5,6 +5,7 @@ import { subirArchivoCloudinary, eliminarArchivoCloudinary } from '../utils/clou
 import { notificarNuevaEntrega, notificarCalificacion } from '../services/notificacionService.js';
 
 //Crear entrega
+//Crear entrega
 export const createEntrega = async (req, res) => {
   try {
     console.log('📦 Body recibido:', req.body);
@@ -89,12 +90,60 @@ export const createEntrega = async (req, res) => {
       padreId,
       textoRespuesta: req.body.textoRespuesta,
       estado,
-      archivosAdjuntos
+      archivosAdjuntos,
+      // ✅ Agregar fecha de entrega si se envía directamente
+      ...(estado === 'enviada' || estado === 'tarde' ? { fechaEntrega: new Date() } : {})
     });
 
     const savedEntrega = await newEntrega.save();
+    console.log(`✅ Entrega guardada: ${savedEntrega._id} (estado: ${estado})`);
 
-    // Popular la entrega guardada
+    // 🔔 NOTIFICAR SI SE ENVIÓ DIRECTAMENTE (no es borrador)
+    if (estado === 'enviada' || estado === 'tarde') {
+      console.log(`\n📧 [CREATE ENTREGA] Entrega enviada directamente, poblando para notificar...`);
+      
+      // Poblar la entrega con todos los datos necesarios
+      const entregaCompleta = await Entrega.findById(savedEntrega._id)
+        .populate({
+          path: 'tareaId',
+          select: 'titulo descripcion fechaEntrega docenteId',
+          populate: {
+            path: 'docenteId',
+            select: 'nombre apellido correo rol telefono'
+          }
+        })
+        .populate({
+          path: 'padreId',
+          select: 'nombre apellido correo telefono rol'
+        });
+
+      // Verificar que la tarea tenga docente asignado
+      if (!entregaCompleta.tareaId?.docenteId) {
+        console.error('❌ La tarea no tiene docente asignado');
+        return res.status(400).json({
+          message: "Error: La tarea no tiene docente asignado"
+        });
+      }
+
+      console.log(`   📋 Datos completos para notificación:`);
+      console.log(`      Tarea: ${entregaCompleta.tareaId.titulo}`);
+      console.log(`      Docente: ${entregaCompleta.tareaId.docenteId.nombre} ${entregaCompleta.tareaId.docenteId.apellido}`);
+      console.log(`      Docente Email: ${entregaCompleta.tareaId.docenteId.correo}`);
+      console.log(`      Padre: ${entregaCompleta.padreId.nombre} ${entregaCompleta.padreId.apellido}`);
+
+      // Enviar notificación (no bloquea la respuesta)
+      notificarNuevaEntrega(entregaCompleta).catch(error => {
+        console.error(`❌ Error al notificar entrega:`, error);
+      });
+
+      // Responder con la entrega completa poblada
+      return res.status(201).json({
+        message: "Entrega creada y enviada exitosamente",
+        entrega: entregaCompleta
+      });
+    }
+
+    // Si es borrador, poblar solo los campos básicos
     await savedEntrega.populate([
       { path: 'tareaId', select: 'titulo descripcion fechaEntrega' },
       { path: 'padreId', select: 'nombre apellido correo' }
@@ -104,6 +153,7 @@ export const createEntrega = async (req, res) => {
       message: "Entrega creada exitosamente",
       entrega: savedEntrega
     });
+
   } catch (error) {
     console.error('❌ Error al crear entrega:', error);
     res.status(500).json({
