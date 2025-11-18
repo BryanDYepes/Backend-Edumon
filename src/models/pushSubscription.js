@@ -4,7 +4,8 @@ const pushSubscriptionSchema = new mongoose.Schema({
   usuarioId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User',
-    required: true
+    required: true,
+    index: true
   },
   endpoint: {
     type: String,

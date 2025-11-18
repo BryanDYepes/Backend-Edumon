@@ -59,11 +59,20 @@ export const crearYEnviarNotificacion = async (datos) => {
       metadata = {}
     } = datos;
 
+    console.log(`\n🔔 [NUEVA NOTIFICACIÓN]`);
+    console.log(`   Usuario: ${usuarioId}`);
+    console.log(`   Tipo: ${tipo}`);
+    console.log(`   Prioridad: ${prioridad}`);
+
     // Obtener usuario
     const usuario = await User.findById(usuarioId);
     if (!usuario) {
-      throw new Error('Usuario no encontrado');
+      throw new Error(`Usuario no encontrado: ${usuarioId}`);
     }
+
+    console.log(`   Usuario encontrado: ${usuario.nombre} ${usuario.apellido} (${usuario.rol})`);
+    console.log(`   Correo: ${usuario.correo}`);
+    console.log(`   Teléfono: ${usuario.telefono || 'N/A'}`);
 
     // Crear notificación en BD
     const notificacion = new Notificacion({
@@ -77,61 +86,83 @@ export const crearYEnviarNotificacion = async (datos) => {
     });
 
     await notificacion.save();
+    console.log(`   ✅ Notificación guardada en BD (${notificacion._id})`);
 
-    // Enviar por websocket
+    // Array para rastrear canales exitosos
+    const canalesExitosos = [];
+    const canalesFallidos = [];
+
+    // 1️⃣ WebSocket (SIEMPRE intentar)
     try {
       await emitirNotificacion(notificacion);
       notificacion.canalEnviado.websocket = true;
+      canalesExitosos.push('WebSocket');
+      console.log(`   ✅ WebSocket enviado`);
     } catch (error) {
-      console.error('Error al enviar por WebSocket:', error);
+      canalesFallidos.push({ canal: 'WebSocket', error: error.message });
+      console.error(`   ❌ Error WebSocket:`, error.message);
     }
 
-    // Enviar push
+    // 2️⃣ Push (si prioridad es alta o crítica)
     if (['alta', 'critica'].includes(prioridad)) {
       try {
         await enviarNotificacionPush(usuario, notificacion);
         notificacion.canalEnviado.push = true;
+        canalesExitosos.push('Push');
+        console.log(`   ✅ Push enviado`);
       } catch (error) {
-        console.error('Error al enviar Push:', error);
+        canalesFallidos.push({ canal: 'Push', error: error.message });
+        console.error(`   ❌ Error Push:`, error.message);
       }
     }
 
-    // Enviar WhatsApp
+    // 3️⃣ WhatsApp (si es crítica Y tiene teléfono)
     if (prioridad === 'critica' && usuario.telefono) {
       try {
         await enviarNotificacionWhatsApp(usuario, notificacion);
         notificacion.canalEnviado.whatsapp = true;
+        canalesExitosos.push('WhatsApp');
+        console.log(`   ✅ WhatsApp enviado a ${usuario.telefono}`);
       } catch (error) {
-        console.error('Error al enviar WhatsApp:', error);
+        canalesFallidos.push({ canal: 'WhatsApp', error: error.message });
+        console.error(`   ❌ Error WhatsApp:`, error.message);
       }
+    } else if (prioridad === 'critica' && !usuario.telefono) {
+      console.warn(`   ⚠️ WhatsApp NO enviado: usuario sin teléfono`);
     }
 
-    // Enviar email (solo a docentes)
-    console.log(`\n📧 [VERIFICACIÓN EMAIL]`);
-    console.log(`  - Rol usuario: "${usuario.rol}"`);
-    console.log(`  - Es docente: ${usuario.rol === 'docente'}`);
-    console.log(`  - Prioridad: "${prioridad}"`);
-    console.log(`  - Incluye prioridad: ${['alta', 'critica'].includes(prioridad)}`);
-    console.log(`  - Correo: ${usuario.correo}`);
-
-    if (
-      usuario.rol === 'docente' &&
-      ['alta', 'critica'].includes(prioridad)
-    ) {
+    // 4️⃣ Email (SOLO docentes con prioridad alta/crítica)
+    if (usuario.rol === 'docente' && ['alta', 'critica'].includes(prioridad)) {
       try {
         await enviarNotificacionEmail(usuario, notificacion);
         notificacion.canalEnviado.email = true;
+        canalesExitosos.push('Email');
+        console.log(`   ✅ Email enviado a ${usuario.correo}`);
       } catch (error) {
-        console.error('Error al enviar Email:', error);
+        canalesFallidos.push({ canal: 'Email', error: error.message });
+        console.error(`   ❌ Error Email:`, error.message);
       }
     }
 
     // Guardar canales enviados
     await notificacion.save();
 
+    // Resumen
+    console.log(`\n📊 Resumen de envío:`);
+    console.log(`   ✅ Exitosos (${canalesExitosos.length}): ${canalesExitosos.join(', ') || 'Ninguno'}`);
+    console.log(`   ❌ Fallidos (${canalesFallidos.length}): ${canalesFallidos.map(c => c.canal).join(', ') || 'Ninguno'}`);
+    
+    if (canalesFallidos.length > 0) {
+      console.warn(`\n⚠️ Detalles de fallos:`);
+      canalesFallidos.forEach(({ canal, error }) => {
+        console.warn(`   - ${canal}: ${error}`);
+      });
+    }
+
     return notificacion;
   } catch (error) {
-    console.error('Error al crear y enviar notificación:', error);
+    console.error('\n❌ ERROR CRÍTICO en crearYEnviarNotificacion:', error);
+    console.error('Stack:', error.stack);
     throw error;
   }
 };
@@ -304,31 +335,30 @@ function generarHTMLEmail(usuario, notificacion) {
  * Obtener suscripciones push de un usuario
  * Debes crear un modelo PushSubscription para guardarlas
  */
+// ✅ DESPUÉS - Importa al inicio del archivo
+import PushSubscription from '../models/PushSubscription.js';
+
+// Reemplaza las funciones por estas versiones corregidas:
 async function obtenerSuscripcionesPush(usuarioId) {
   try {
-    // Importar modelo de suscripciones (crearlo si no existe)
-    const PushSubscription = (await import('../models/pushSubscription.js')).default;
     const suscripciones = await PushSubscription.find({
       usuarioId,
       activa: true
     });
+    console.log(`📱 Suscripciones push encontradas: ${suscripciones.length}`);
     return suscripciones;
   } catch (error) {
-    console.error('Error al obtener suscripciones:', error);
+    console.error('❌ Error al obtener suscripciones:', error);
     return [];
   }
 }
 
-/**
- * Eliminar suscripción push expirada
- */
 async function eliminarSuscripcionPush(endpoint) {
   try {
-    const PushSubscription = (await import('../models/pushSubscription.model.js')).default;
     await PushSubscription.deleteOne({ endpoint });
-    console.log('Suscripción expirada eliminada');
+    console.log('🗑️ Suscripción expirada eliminada');
   } catch (error) {
-    console.error('Error al eliminar suscripción:', error);
+    console.error('❌ Error al eliminar suscripción:', error);
   }
 }
 
